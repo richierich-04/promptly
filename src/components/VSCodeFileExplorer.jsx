@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ChevronRight, ChevronDown, File, Folder, FolderOpen, Plus, X, Save, Terminal as TerminalIcon } from 'lucide-react';
+import { ChevronRight, ChevronDown, File, Folder, FolderOpen, Plus, X, Save, Terminal as TerminalIcon, Play, RefreshCw, ExternalLink, Monitor, Code, Box } from 'lucide-react';
 import Editor, { loader } from '@monaco-editor/react';
 
 const BACKEND_URL = 'http://localhost:5001';
@@ -22,8 +22,8 @@ const VSCodeFileExplorer = ({ generatedFiles }) => {
 
   const [expandedFolders, setExpandedFolders] = useState(new Set(['project-root', 'src']));
   const [selectedFile, setSelectedFile] = useState(null);
-  const [openTabs, setOpenTabs] = useState([]);
-  const [activeTab, setActiveTab] = useState(null);
+  const [openTabs, setOpenTabs] = useState(['preview']);
+  const [activeTab, setActiveTab] = useState('preview');
   const [fileContents, setFileContents] = useState({});
   const [showNewFileInput, setShowNewFileInput] = useState(null);
   const [newItemName, setNewItemName] = useState('');
@@ -31,18 +31,24 @@ const VSCodeFileExplorer = ({ generatedFiles }) => {
   const [showTerminal, setShowTerminal] = useState(true);
   const [terminalHeight, setTerminalHeight] = useState(250);
   const [terminalOutput, setTerminalOutput] = useState([
-    { type: 'info', text: '🚀 Real Terminal Connected!' },
-    { type: 'info', text: 'You can now run actual commands like: npm install, npm run dev, touch file.txt, etc.' },
-    { type: 'info', text: 'Type "help" for simulated commands or use real shell commands.' }
+    { type: 'info', text: '🚀 Terminal Connected with StackBlitz Preview!' },
+    { type: 'info', text: 'Preview will open in StackBlitz WebContainer' },
+    { type: 'info', text: 'Type "help" for available commands' }
   ]);
   const [terminalInput, setTerminalInput] = useState('');
   const [commandHistory, setCommandHistory] = useState([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [currentDirectory, setCurrentDirectory] = useState('.');
   const [isExecuting, setIsExecuting] = useState(false);
+  const [stackblitzVM, setStackblitzVM] = useState(null);
+  const [isLoadingPreview, setIsLoadingPreview] = useState(false);
+  const [previewReady, setPreviewReady] = useState(false);
+  const [devServerUrl, setDevServerUrl] = useState('');
+  
   const editorRef = useRef(null);
   const terminalInputRef = useRef(null);
   const terminalOutputRef = useRef(null);
+  const previewContainerRef = useRef(null);
   const [isEditorReady, setIsEditorReady] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const sessionId = useRef(Date.now().toString());
@@ -56,33 +62,21 @@ const VSCodeFileExplorer = ({ generatedFiles }) => {
     });
   }, []);
 
-  // Check backend connection and load initial file system
+  // Check backend connection
   useEffect(() => {
     const checkBackend = async () => {
       try {
-        console.log('Attempting to connect to backend at:', BACKEND_URL);
         const response = await fetch(`${BACKEND_URL}/api/health`);
         
         if (response.ok) {
-          const data = await response.json();
-          console.log('Backend health check:', data);
-          
           setTerminalOutput(prev => [...prev, { 
             type: 'success', 
             text: `✅ Backend connected at ${BACKEND_URL}` 
           }]);
           
-          // Only load workspace if no AI-generated files
           if (!generatedFiles) {
-            setTerminalOutput(prev => [...prev, { 
-              type: 'info', 
-              text: '🔄 Loading workspace files from disk...' 
-            }]);
-            
             await refreshFileSystem();
           }
-        } else {
-          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
       } catch (error) {
         console.error('Backend connection error:', error);
@@ -90,20 +84,16 @@ const VSCodeFileExplorer = ({ generatedFiles }) => {
           type: 'error', 
           text: `❌ Cannot connect to backend at ${BACKEND_URL}` 
         }, {
-          type: 'error',
-          text: `Error: ${error.message}`
-        }, {
           type: 'info',
-          text: 'Make sure backend is running: cd backend && npm start'
+          text: 'Backend is optional. StackBlitz preview will still work!'
         }]);
       }
     };
     
-    // Retry connection after a short delay
     setTimeout(checkBackend, 1000);
   }, [generatedFiles]);
 
-  // Auto-scroll terminal to bottom
+  // Auto-scroll terminal
   useEffect(() => {
     if (terminalOutputRef.current) {
       terminalOutputRef.current.scrollTop = terminalOutputRef.current.scrollHeight;
@@ -114,33 +104,429 @@ const VSCodeFileExplorer = ({ generatedFiles }) => {
   const getLanguageFromFileName = (fileName) => {
     const ext = fileName.split('.').pop().toLowerCase();
     const languageMap = {
-      'js': 'javascript',
-      'jsx': 'javascript',
-      'ts': 'typescript',
-      'tsx': 'typescript',
-      'json': 'json',
-      'html': 'html',
-      'css': 'css',
-      'scss': 'scss',
-      'py': 'python',
-      'java': 'java',
-      'cpp': 'cpp',
-      'c': 'c',
-      'md': 'markdown',
-      'xml': 'xml',
-      'yaml': 'yaml',
-      'yml': 'yaml',
-      'sh': 'shell',
-      'sql': 'sql',
-      'php': 'php',
-      'go': 'go',
-      'rs': 'rust',
-      'rb': 'ruby',
-      'swift': 'swift',
-      'kt': 'kotlin',
-      'r': 'r',
+      'js': 'javascript', 'jsx': 'javascript', 'ts': 'typescript', 'tsx': 'typescript',
+      'json': 'json', 'html': 'html', 'css': 'css', 'scss': 'scss', 'py': 'python',
+      'java': 'java', 'cpp': 'cpp', 'c': 'c', 'md': 'markdown', 'xml': 'xml',
+      'yaml': 'yaml', 'yml': 'yaml', 'sh': 'shell', 'sql': 'sql', 'php': 'php',
+      'go': 'go', 'rs': 'rust', 'rb': 'ruby', 'swift': 'swift', 'kt': 'kotlin',
     };
     return languageMap[ext] || 'plaintext';
+  };
+
+  // Collect all files for StackBlitz
+  const collectAllFiles = (node, path = '', files = {}) => {
+    if (node.type === 'file') {
+      const fullPath = path ? `${path}/${node.name}` : node.name;
+      files[fullPath] = node.content || '';
+    }
+    
+    if (node.type === 'folder' && node.children) {
+      for (const child of node.children) {
+        const currentPath = path ? `${path}/${node.name}` : node.name;
+        collectAllFiles(child, currentPath, files);
+      }
+    }
+    
+    return files;
+  };
+
+  // Detect project type and template
+  const detectProjectType = (files) => {
+    const fileNames = Object.keys(files);
+    const hasReact = fileNames.some(f => f.endsWith('.jsx') || f.endsWith('.tsx')) || 
+                     JSON.stringify(files).includes('react');
+    const hasVue = fileNames.some(f => f.endsWith('.vue'));
+    const hasAngular = fileNames.some(f => f.includes('angular'));
+    const hasTypeScript = fileNames.some(f => f.endsWith('.ts') || f.endsWith('.tsx'));
+
+    // StackBlitz valid templates: node, javascript, typescript, angular-cli, create-react-app, html, polymer, vue
+    if (hasAngular) return 'angular-cli';
+    if (hasVue) return 'vue';
+    if (hasReact && hasTypeScript) return 'create-react-app';
+    if (hasReact) return 'create-react-app';
+    if (hasTypeScript) return 'typescript';
+    
+    return 'javascript'; // default - works for HTML/CSS/JS
+  };
+
+  // Ensure package.json exists with proper dependencies
+  const ensurePackageJson = (files, template) => {
+    let packageJson = {};
+    
+    if (files['package.json']) {
+      try {
+        packageJson = JSON.parse(files['package.json']);
+      } catch (e) {
+        console.warn('Invalid package.json, creating new one');
+      }
+    }
+
+    // Set default values based on template
+    const defaults = {
+      name: 'stackblitz-project',
+      version: '1.0.0',
+      description: 'Generated project',
+      main: 'index.js',
+      scripts: packageJson.scripts || {},
+      dependencies: packageJson.dependencies || {},
+      devDependencies: packageJson.devDependencies || {}
+    };
+
+    // Add template-specific dependencies
+    if (template.includes('react')) {
+      defaults.dependencies.react = '^18.2.0';
+      defaults.dependencies['react-dom'] = '^18.2.0';
+      
+      if (template.includes('vite') || Object.keys(files).some(f => f.includes('vite'))) {
+        defaults.scripts.dev = 'vite';
+        defaults.scripts.build = 'vite build';
+        defaults.scripts.preview = 'vite preview';
+        defaults.devDependencies.vite = '^5.0.0';
+        defaults.devDependencies['@vitejs/plugin-react'] = '^4.2.0';
+      } else {
+        defaults.scripts.start = 'react-scripts start';
+        defaults.scripts.build = 'react-scripts build';
+      }
+    }
+
+    if (template === 'vue') {
+      defaults.dependencies.vue = '^3.3.0';
+      defaults.scripts.dev = 'vite';
+      defaults.devDependencies.vite = '^5.0.0';
+      defaults.devDependencies['@vitejs/plugin-vue'] = '^5.0.0';
+    }
+
+    files['package.json'] = JSON.stringify(defaults, null, 2);
+    return files;
+  };
+
+  // Ensure index.html exists
+  const ensureIndexHtml = (files, template) => {
+    if (files['index.html'] || files['public/index.html']) {
+      return files;
+    }
+
+    // Create index.html based on template
+    let html = '';
+    
+    if (template.includes('react')) {
+      html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>React App</title>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="module" src="/src/main.jsx"></script>
+</body>
+</html>`;
+    } else {
+      html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>App</title>
+</head>
+<body>
+  <div id="app"></div>
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>`;
+    }
+
+    files['index.html'] = html;
+    return files;
+  };
+
+  // Open project in StackBlitz
+  const openInStackBlitz = async () => {
+    setIsLoadingPreview(true);
+    setTerminalOutput(prev => [...prev, { 
+      type: 'info', 
+      text: '🚀 Opening preview in StackBlitz...' 
+    }]);
+
+    try {
+      // Dynamically load StackBlitz SDK
+      if (!window.StackBlitzSDK) {
+        const script = document.createElement('script');
+        script.src = 'https://unpkg.com/@stackblitz/sdk@1/bundles/sdk.umd.js';
+        script.async = true;
+        
+        await new Promise((resolve, reject) => {
+          script.onload = resolve;
+          script.onerror = reject;
+          document.head.appendChild(script);
+        });
+        
+        setTerminalOutput(prev => [...prev, { 
+          type: 'success', 
+          text: '✅ StackBlitz SDK loaded' 
+        }]);
+      }
+
+      const sdk = window.StackBlitzSDK;
+
+      // Collect all files
+      let files = collectAllFiles(fileSystem);
+      
+      // Detect project type
+      const template = detectProjectType(files);
+      setTerminalOutput(prev => [...prev, { 
+        type: 'info', 
+        text: `📦 Detected project type: ${template}` 
+      }]);
+
+      // Ensure necessary files exist
+      files = ensurePackageJson(files, template);
+      files = ensureIndexHtml(files, template);
+
+      setTerminalOutput(prev => [...prev, { 
+        type: 'info', 
+        text: `📄 Prepared ${Object.keys(files).length} files` 
+      }]);
+
+      // Prepare StackBlitz project
+      const project = {
+        title: 'AI Generated Project',
+        description: 'Generated with AI',
+        template: template,
+        files: files,
+        settings: {
+          compile: {
+            trigger: 'auto',
+            clearConsole: false
+          }
+        }
+      };
+
+      // Clear preview container
+      if (previewContainerRef.current) {
+        previewContainerRef.current.innerHTML = '';
+      }
+
+      setTerminalOutput(prev => [...prev, { 
+        type: 'info', 
+        text: '⚡ Embedding StackBlitz...' 
+      }]);
+
+      // Embed StackBlitz
+      const vm = await sdk.embedProject(
+        previewContainerRef.current,
+        project,
+        {
+          openFile: Object.keys(files)[0],
+          view: 'preview',
+          height: '100%',
+          hideNavigation: false,
+          hideDevTools: false,
+          forceEmbedLayout: true,
+          clickToLoad: false,
+        }
+      );
+
+      setStackblitzVM(vm);
+      setPreviewReady(true);
+      setIsLoadingPreview(false);
+
+      setTerminalOutput(prev => [...prev, { 
+        type: 'success', 
+        text: '✅ StackBlitz preview loaded successfully!' 
+      }, {
+        type: 'info',
+        text: '💡 Your app is now running in a real WebContainer'
+      }]);
+
+    } catch (error) {
+      console.error('StackBlitz error:', error);
+      setIsLoadingPreview(false);
+      setTerminalOutput(prev => [...prev, { 
+        type: 'error', 
+        text: `❌ StackBlitz failed: ${error.message}` 
+      }, {
+        type: 'info',
+        text: '💡 Falling back to simple iframe preview...'
+      }]);
+      
+      // Fallback to simple preview
+      generateSimplePreview();
+    }
+  };
+
+  // Generate simple iframe preview as fallback
+  const generateSimplePreview = () => {
+    const allFiles = collectAllFiles(fileSystem);
+    const entryPoint = findEntryPoint(fileSystem);
+
+    if (!entryPoint) {
+      const previewHtml = `
+        <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; font-family: sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 40px;">
+          <h1 style="font-size: 48px; margin-bottom: 20px;">🚀 Project Generated!</h1>
+          <p style="font-size: 20px; margin-bottom: 30px;">Your project files are ready</p>
+          <div style="background: rgba(255,255,255,0.1); padding: 20px; border-radius: 10px; backdrop-filter: blur(10px);">
+            <p style="margin: 10px 0;">📁 ${Object.keys(allFiles).length} files generated</p>
+            <p style="margin: 10px 0;">💡 Click "Open Preview" above to see it in StackBlitz</p>
+          </div>
+        </div>
+      `;
+      
+      if (previewContainerRef.current) {
+        previewContainerRef.current.innerHTML = `<iframe style="width:100%;height:100%;border:0" srcdoc="${previewHtml.replace(/"/g, '&quot;')}"></iframe>`;
+      }
+      return;
+    }
+
+    // Generate preview based on file type
+    let previewHtml = '';
+    
+    if (entryPoint.type === 'html') {
+      let html = entryPoint.file.content || '';
+      
+      // Inject CSS files
+      Object.keys(allFiles).forEach(filePath => {
+        if (filePath.endsWith('.css')) {
+          const styleTag = `<style>\n${allFiles[filePath]}\n</style>`;
+          html = html.replace('</head>', `${styleTag}\n</head>`);
+        }
+      });
+      
+      // Inject JS files
+      Object.keys(allFiles).forEach(filePath => {
+        if (filePath.endsWith('.js') && !filePath.includes('node_modules')) {
+          const scriptTag = `<script>\n${allFiles[filePath]}\n</script>`;
+          html = html.replace('</body>', `${scriptTag}\n</body>`);
+        }
+      });
+      
+      previewHtml = html;
+    } else if (entryPoint.type === 'react') {
+      previewHtml = generateReactPreview(allFiles);
+    }
+
+    if (previewContainerRef.current) {
+      previewContainerRef.current.innerHTML = `<iframe style="width:100%;height:100%;border:0" srcdoc="${previewHtml.replace(/"/g, '&quot;')}"></iframe>`;
+    }
+    
+    setPreviewReady(true);
+    setTerminalOutput(prev => [...prev, { 
+      type: 'success', 
+      text: '✅ Simple preview loaded' 
+    }]);
+  };
+
+  // Find entry point file
+  const findEntryPoint = (node, path = '') => {
+    if (node.type === 'file') {
+      const fileName = node.name.toLowerCase();
+      const fullPath = path ? `${path}/${node.name}` : node.name;
+      
+      if (fileName === 'index.html') return { file: node, path: fullPath, type: 'html' };
+      if (fileName === 'app.jsx' || fileName === 'app.tsx' || fileName === 'app.js') 
+        return { file: node, path: fullPath, type: 'react' };
+      if (fileName === 'main.jsx' || fileName === 'main.tsx') 
+        return { file: node, path: fullPath, type: 'react' };
+    }
+    
+    if (node.type === 'folder' && node.children) {
+      for (const child of node.children) {
+        const currentPath = path ? `${path}/${node.name}` : node.name;
+        const result = findEntryPoint(child, currentPath);
+        if (result) return result;
+      }
+    }
+    
+    return null;
+  };
+
+  // Generate React preview for fallback
+  const generateReactPreview = (allFiles) => {
+    const jsxFiles = Object.keys(allFiles)
+      .filter(path => 
+        (path.endsWith('.jsx') || path.endsWith('.js')) &&
+        !path.includes('node_modules')
+      );
+
+    let allCode = '';
+    jsxFiles.forEach(filePath => {
+      const code = allFiles[filePath];
+      const cleanCode = code
+        .split('\n')
+        .filter(line => !line.trim().startsWith('import ') && !line.trim().startsWith('export default'))
+        .join('\n');
+      allCode += cleanCode + '\n\n';
+    });
+
+    const cssFiles = Object.keys(allFiles).filter(path => path.endsWith('.css'));
+    const styles = cssFiles.map(path => allFiles[path]).join('\n\n');
+
+    return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>React Preview</title>
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { 
+      margin: 0; 
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+    }
+    #root { min-height: 100vh; }
+    ${styles}
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
+    
+    ${allCode}
+    
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    
+    try {
+      if (typeof App !== 'undefined') {
+        root.render(<App />);
+      } else {
+        const possibleComponents = ['Calculator', 'TodoApp', 'Counter', 'Main'];
+        let rendered = false;
+        
+        for (const compName of possibleComponents) {
+          if (typeof window[compName] !== 'undefined') {
+            const Component = window[compName];
+            root.render(<Component />);
+            rendered = true;
+            break;
+          }
+        }
+        
+        if (!rendered) {
+          root.render(
+            <div style={{padding: '40px', textAlign: 'center'}}>
+              <h1>✅ React App Ready</h1>
+              <p>Export your component as "App" or one of: Calculator, TodoApp, Counter</p>
+            </div>
+          );
+        }
+      }
+    } catch (error) {
+      root.render(
+        <div style={{padding: '40px', color: 'red'}}>
+          <h2>Error</h2>
+          <pre>{error.toString()}</pre>
+        </div>
+      );
+    }
+  </script>
+</body>
+</html>`;
   };
 
   // Execute real command via backend
@@ -162,7 +548,6 @@ const VSCodeFileExplorer = ({ generatedFiles }) => {
       const data = await response.json();
       
       if (data.output) {
-        // Split output by lines and add each line
         data.output.split('\n').forEach(line => {
           if (line.trim()) {
             setTerminalOutput(prev => [...prev, { 
@@ -173,31 +558,20 @@ const VSCodeFileExplorer = ({ generatedFiles }) => {
         });
       }
 
-      if (!data.success && data.error) {
-        setTerminalOutput(prev => [...prev, { 
-          type: 'error', 
-          text: `Error: ${data.error}` 
-        }]);
-      }
-
-      // Refresh file system after commands that might modify files
-      if (command.includes('touch') || command.includes('mkdir') || 
-          command.includes('rm') || command.includes('npm') || 
-          command.includes('git') || command.includes('>') ||
-          command.includes('mv') || command.includes('cp')) {
+      if (command.includes('touch') || command.includes('mkdir') || command.includes('rm')) {
         setTimeout(() => refreshFileSystem(), 500);
       }
     } catch (error) {
       setTerminalOutput(prev => [...prev, { 
         type: 'error', 
-        text: `Connection error: ${error.message}. Make sure backend is running!` 
+        text: `Connection error: ${error.message}` 
       }]);
     } finally {
       setIsExecuting(false);
     }
   };
 
-  // Build file tree from backend and merge with existing
+  // Build file tree from backend
   const buildFileTree = async (dirPath = '.') => {
     try {
       const response = await fetch(`${BACKEND_URL}/api/listDir`, {
@@ -223,7 +597,6 @@ const VSCodeFileExplorer = ({ generatedFiles }) => {
               children: subChildren
             };
           } else {
-            // Try to read file content
             let content = '';
             try {
               const fileResponse = await fetch(`${BACKEND_URL}/api/readFile`, {
@@ -257,38 +630,28 @@ const VSCodeFileExplorer = ({ generatedFiles }) => {
     }
   };
 
-  // Refresh file system from backend - merge with AI generated structure
+  // Refresh file system
   const refreshFileSystem = async () => {
     try {
       const children = await buildFileTree('.');
       
       if (children && children.length > 0) {
-        // Update the existing file system with new files from disk
         setFileSystem(prevFS => {
-          // If we have a project-root or similar, update its children
           if (prevFS.type === 'folder') {
             return {
               ...prevFS,
               children: children
             };
           }
-          // Otherwise create a new root
           return {
             name: prevFS.name || 'project-root',
             type: 'folder',
             children: children
           };
         });
-        
-        // Preserve expanded folders
-        setExpandedFolders(prev => new Set([...prev, fileSystem.name]));
       }
     } catch (error) {
       console.error('Error refreshing file system:', error);
-      setTerminalOutput(prev => [...prev, { 
-        type: 'error', 
-        text: `❌ Failed to refresh: ${error.message}` 
-      }]);
     }
   };
 
@@ -303,33 +666,19 @@ const VSCodeFileExplorer = ({ generatedFiles }) => {
 
     const [command, ...args] = trimmedCmd.split(' ');
 
-    // Handle built-in commands
     switch (command.toLowerCase()) {
       case 'help':
         setTerminalOutput(prev => [...prev, 
           { type: 'output', text: '📚 Available Commands:' },
-          { type: 'output', text: '' },
-          { type: 'output', text: '🔧 Built-in Commands:' },
-          { type: 'output', text: '  help     - Show this help message' },
-          { type: 'output', text: '  clear    - Clear terminal' },
-          { type: 'output', text: '  cls      - Clear terminal (Windows)' },
-          { type: 'output', text: '  refresh  - Refresh file explorer from disk' },
-          { type: 'output', text: '' },
-          { type: 'output', text: '💻 Real Shell Commands (examples):' },
-          { type: 'output', text: '  ls / dir           - List files' },
-          { type: 'output', text: '  pwd                - Current directory' },
-          { type: 'output', text: '  cd <dir>           - Change directory' },
-          { type: 'output', text: '  touch <file>       - Create file' },
-          { type: 'output', text: '  mkdir <dir>        - Create directory' },
-          { type: 'output', text: '  cat <file>         - View file' },
-          { type: 'output', text: '  echo <text>        - Print text' },
-          { type: 'output', text: '  npm init           - Initialize npm' },
-          { type: 'output', text: '  npm install        - Install packages' },
-          { type: 'output', text: '  npm run dev        - Run dev server' },
-          { type: 'output', text: '  git init           - Initialize git' },
-          { type: 'output', text: '  python <file>      - Run Python' },
-          { type: 'output', text: '  node <file>        - Run Node.js' },
+          { type: 'output', text: '  help       - Show this help' },
+          { type: 'output', text: '  clear      - Clear terminal' },
+          { type: 'output', text: '  refresh    - Refresh file explorer' },
+          { type: 'output', text: '  preview    - Open StackBlitz preview' },
         ]);
+        break;
+
+      case 'preview':
+        await openInStackBlitz();
         break;
 
       case 'refresh':
@@ -353,15 +702,10 @@ const VSCodeFileExplorer = ({ generatedFiles }) => {
           }]);
         } else {
           setCurrentDirectory('.');
-          setTerminalOutput(prev => [...prev, { 
-            type: 'success', 
-            text: 'Changed to workspace root' 
-          }]);
         }
         break;
 
       default:
-        // Execute real command via backend
         await executeRealCommand(trimmedCmd);
     }
   };
@@ -390,10 +734,6 @@ const VSCodeFileExplorer = ({ generatedFiles }) => {
         setHistoryIndex(-1);
         setTerminalInput('');
       }
-    } else if (e.key === 'c' && e.ctrlKey) {
-      e.preventDefault();
-      setTerminalOutput(prev => [...prev, { type: 'info', text: '^C' }]);
-      setTerminalInput('');
     }
   };
 
@@ -428,13 +768,12 @@ const VSCodeFileExplorer = ({ generatedFiles }) => {
     };
   }, [isDragging]);
 
-  // Sync AI-generated files to backend workspace
+  // Sync AI files to backend
   const syncAIFilesToBackend = async (node, parentPath = '') => {
     try {
       const currentPath = parentPath ? `${parentPath}/${node.name}` : node.name;
       
       if (node.type === 'folder') {
-        // Create directory
         await fetch(`${BACKEND_URL}/api/createDir`, {
           method: 'POST',
           headers: {
@@ -443,14 +782,12 @@ const VSCodeFileExplorer = ({ generatedFiles }) => {
           body: JSON.stringify({ dirPath: currentPath })
         });
         
-        // Recursively sync children
         if (node.children) {
           for (const child of node.children) {
             await syncAIFilesToBackend(child, currentPath);
           }
         }
       } else if (node.type === 'file') {
-        // Write file
         await fetch(`${BACKEND_URL}/api/writeFile`, {
           method: 'POST',
           headers: {
@@ -467,11 +804,12 @@ const VSCodeFileExplorer = ({ generatedFiles }) => {
     }
   };
 
-  // Update file system when generatedFiles prop changes
+  // Load AI-generated files
   useEffect(() => {
     if (generatedFiles) {
       console.log('Loading AI-generated files...');
       setFileSystem(generatedFiles);
+      
       const expandAll = (node, path = '') => {
         const currentPath = path ? `${path}/${node.name}` : node.name;
         const paths = [currentPath];
@@ -484,27 +822,30 @@ const VSCodeFileExplorer = ({ generatedFiles }) => {
       };
       setExpandedFolders(new Set(expandAll(generatedFiles)));
       
+      setActiveTab('preview');
+      setOpenTabs(['preview']);
+      
       setTerminalOutput(prev => [...prev, { 
         type: 'info', 
-        text: '📦 Syncing AI-generated files to workspace...' 
+        text: '📦 AI-generated files loaded!' 
+      }, {
+        type: 'success',
+        text: '✅ Opening preview automatically...'
       }]);
       
-      // Sync AI files to backend
-      syncAIFilesToBackend(generatedFiles).then(() => {
-        setTerminalOutput(prev => [...prev, { 
-          type: 'success', 
-          text: '✅ AI project synced to workspace! You can now use terminal commands.' 
-        }]);
-      }).catch(err => {
-        setTerminalOutput(prev => [...prev, { 
-          type: 'error', 
-          text: `❌ Failed to sync: ${err.message}` 
-        }]);
+      // Sync to backend (optional)
+      syncAIFilesToBackend(generatedFiles).catch(err => {
+        console.warn('Backend sync failed:', err);
       });
+
+      // Auto-open StackBlitz preview
+      setTimeout(() => {
+        openInStackBlitz();
+      }, 1000);
     }
   }, [generatedFiles]);
 
-  // Toggle folder expansion
+  // Toggle folder
   const toggleFolder = (path) => {
     setExpandedFolders(prev => {
       const next = new Set(prev);
@@ -517,7 +858,7 @@ const VSCodeFileExplorer = ({ generatedFiles }) => {
     });
   };
 
-  // Add new file or folder
+  // Add new item
   const addNewItem = (parentPath) => {
     if (!newItemName.trim()) return;
 
@@ -547,7 +888,7 @@ const VSCodeFileExplorer = ({ generatedFiles }) => {
     }
   };
 
-  // Open file in editor
+  // Open file
   const openFile = (path, node) => {
     if (node.type !== 'file') return;
     
@@ -578,11 +919,24 @@ const VSCodeFileExplorer = ({ generatedFiles }) => {
 
   // Update file content
   const updateFileContent = (content) => {
-    if (activeTab) {
+    if (activeTab && activeTab !== 'preview') {
       setFileContents(prev => ({
         ...prev,
         [activeTab]: content
       }));
+      
+      // Update in StackBlitz if available
+      if (stackblitzVM && previewReady) {
+        try {
+          stackblitzVM.applyFsDiff({
+            create: {
+              [activeTab]: content
+            }
+          });
+        } catch (error) {
+          console.warn('Could not update StackBlitz:', error);
+        }
+      }
     }
   };
 
@@ -598,27 +952,17 @@ const VSCodeFileExplorer = ({ generatedFiles }) => {
         { token: 'comment', foreground: '6A9955' },
         { token: 'keyword', foreground: '569CD6' },
         { token: 'string', foreground: 'CE9178' },
-        { token: 'number', foreground: 'B5CEA8' },
-        { token: 'type', foreground: '4EC9B0' },
-        { token: 'class', foreground: '4EC9B0' },
-        { token: 'function', foreground: 'DCDCAA' },
-        { token: 'variable', foreground: '9CDCFE' },
-        { token: 'constant', foreground: '4FC1FF' },
-        { token: 'operator', foreground: 'D4D4D4' },
       ],
       colors: {
         'editor.background': '#1E1E1E',
         'editor.foreground': '#D4D4D4',
-        'editor.lineHighlightBackground': '#2A2A2A',
-        'editorCursor.foreground': '#AEAFAD',
-        'editor.selectionBackground': '#264F78',
       }
     });
     
     monaco.editor.setTheme('vscode-dark');
   };
 
-  // Render tree recursively
+  // Render tree
   const renderTree = (node, path = '') => {
     const currentPath = path ? `${path}/${node.name}` : node.name;
     const isExpanded = expandedFolders.has(currentPath);
@@ -702,12 +1046,12 @@ const VSCodeFileExplorer = ({ generatedFiles }) => {
     );
   };
 
-  const currentFileName = activeTab ? activeTab.split('/').pop() : '';
-  const currentLanguage = activeTab ? getLanguageFromFileName(currentFileName) : 'plaintext';
+  const currentFileName = activeTab && activeTab !== 'preview' ? activeTab.split('/').pop() : '';
+  const currentLanguage = activeTab && activeTab !== 'preview' ? getLanguageFromFileName(currentFileName) : 'plaintext';
 
   return (
     <div className="flex h-screen bg-gray-900 text-white">
-      {/* Sidebar - File Explorer */}
+      {/* Sidebar */}
       <div className="w-64 bg-gray-800 border-r border-gray-700 overflow-y-auto">
         <div className="p-2 border-b border-gray-700 flex items-center justify-between">
           <span className="text-xs font-semibold uppercase text-gray-400">Explorer</span>
@@ -726,35 +1070,120 @@ const VSCodeFileExplorer = ({ generatedFiles }) => {
         </div>
       </div>
 
-      {/* Main Editor Area */}
+      {/* Main Content */}
       <div className="flex-1 flex flex-col">
         {/* Tabs */}
-        {openTabs.length > 0 && (
-          <div className="flex bg-gray-800 border-b border-gray-700 overflow-x-auto">
-            {openTabs.map(tab => (
-              <div
-                key={tab}
-                className={`flex items-center gap-2 px-4 py-2 border-r border-gray-700 cursor-pointer ${
-                  activeTab === tab ? 'bg-gray-900' : 'hover:bg-gray-700'
-                }`}
-                onClick={() => setActiveTab(tab)}
-              >
-                <File size={14} />
-                <span className="text-sm">{tab.split('/').pop()}</span>
-                <button
-                  onClick={(e) => closeTab(tab, e)}
-                  className="hover:bg-gray-600 rounded p-0.5"
-                >
-                  <X size={12} />
-                </button>
-              </div>
-            ))}
+        <div className="flex bg-gray-800 border-b border-gray-700 overflow-x-auto">
+          {/* Preview Tab */}
+          <div
+            className={`flex items-center gap-2 px-4 py-2 border-r border-gray-700 cursor-pointer ${
+              activeTab === 'preview' ? 'bg-gray-900' : 'hover:bg-gray-700'
+            }`}
+            onClick={() => setActiveTab('preview')}
+          >
+            <Box size={14} className="text-orange-400" />
+            <span className="text-sm">StackBlitz Preview</span>
+            {previewReady && (
+              <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse" title="Live"></span>
+            )}
           </div>
-        )}
 
-        {/* Monaco Editor */}
+          {/* File Tabs */}
+          {openTabs.filter(tab => tab !== 'preview').map(tab => (
+            <div
+              key={tab}
+              className={`flex items-center gap-2 px-4 py-2 border-r border-gray-700 cursor-pointer ${
+                activeTab === tab ? 'bg-gray-900' : 'hover:bg-gray-700'
+              }`}
+              onClick={() => setActiveTab(tab)}
+            >
+              <Code size={14} />
+              <span className="text-sm">{tab.split('/').pop()}</span>
+              <button
+                onClick={(e) => closeTab(tab, e)}
+                className="hover:bg-gray-600 rounded p-0.5"
+              >
+                <X size={12} />
+              </button>
+            </div>
+          ))}
+        </div>
+
+        {/* Content Area */}
         <div className="flex-1 overflow-hidden" style={{ height: showTerminal ? `calc(100% - ${terminalHeight}px)` : '100%' }}>
-          {activeTab ? (
+          {activeTab === 'preview' ? (
+            // StackBlitz Preview Panel
+            <div className="h-full flex flex-col bg-gray-800">
+              {/* Preview Controls */}
+              <div className="flex items-center justify-between px-4 py-2 bg-gray-800 border-b border-gray-700">
+                <div className="flex items-center gap-2">
+                  <Box size={16} className="text-orange-400" />
+                  <span className="text-sm font-semibold">
+                    {previewReady ? '🟢 StackBlitz WebContainer Running' : '⚪ Preview'}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  {!previewReady && !isLoadingPreview && (
+                    <button
+                      onClick={openInStackBlitz}
+                      className="bg-orange-600 hover:bg-orange-700 px-3 py-1.5 rounded flex items-center gap-2 text-sm"
+                    >
+                      <Play size={14} />
+                      Open Preview
+                    </button>
+                  )}
+                  {isLoadingPreview && (
+                    <div className="flex items-center gap-2 text-sm text-blue-400">
+                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-400 border-t-transparent"></div>
+                      Loading...
+                    </div>
+                  )}
+                  {previewReady && (
+                    <button
+                      onClick={openInStackBlitz}
+                      className="hover:bg-gray-700 p-1.5 rounded flex items-center gap-1"
+                      title="Reload Preview"
+                    >
+                      <RefreshCw size={14} />
+                      <span className="text-xs">Reload</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Preview Content */}
+              <div className="flex-1 overflow-hidden relative">
+                {!previewReady && !isLoadingPreview ? (
+                  <div className="flex flex-col items-center justify-center h-full bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900">
+                    <Box size={64} className="text-orange-400 mb-6 animate-bounce" />
+                    <h2 className="text-2xl font-bold mb-4">StackBlitz WebContainer Preview</h2>
+                    <p className="text-gray-400 mb-6 text-center max-w-md">
+                      Click "Open Preview" to see your project running in a full Node.js environment
+                    </p>
+                    <button
+                      onClick={openInStackBlitz}
+                      className="bg-orange-600 hover:bg-orange-700 px-6 py-3 rounded-lg flex items-center gap-2 font-semibold transition-all hover:scale-105"
+                    >
+                      <Play size={20} />
+                      Open Preview
+                    </button>
+                    <div className="mt-8 text-sm text-gray-500">
+                      <p>✨ Supports: React, Vue, Angular, Node.js, and more</p>
+                      <p>⚡ Runs actual dev servers with hot reload</p>
+                      <p>🔧 Full npm package support</p>
+                    </div>
+                  </div>
+                ) : (
+                  <div 
+                    ref={previewContainerRef} 
+                    className="w-full h-full"
+                    style={{ minHeight: '100%' }}
+                  />
+                )}
+              </div>
+            </div>
+          ) : activeTab ? (
+            // Monaco Editor
             <Editor
               height="100%"
               language={currentLanguage}
@@ -772,19 +1201,6 @@ const VSCodeFileExplorer = ({ generatedFiles }) => {
                 wordWrap: 'on',
                 formatOnPaste: true,
                 formatOnType: true,
-                folding: true,
-                lineNumbers: 'on',
-                renderWhitespace: 'selection',
-                bracketPairColorization: {
-                  enabled: true
-                },
-                guides: {
-                  bracketPairs: true,
-                  indentation: true
-                },
-                suggest: {
-                  snippetsPreventQuickSuggestions: false
-                }
               }}
             />
           ) : (
@@ -849,7 +1265,7 @@ const VSCodeFileExplorer = ({ generatedFiles }) => {
                   onChange={(e) => setTerminalInput(e.target.value)}
                   onKeyDown={handleTerminalKeyDown}
                   className="flex-1 bg-transparent outline-none text-sm font-mono"
-                  placeholder="Type a command..."
+                  placeholder="Type 'preview' to open StackBlitz..."
                   disabled={isExecuting}
                   autoFocus
                 />
@@ -858,7 +1274,7 @@ const VSCodeFileExplorer = ({ generatedFiles }) => {
           </>
         )}
 
-        {/* Terminal Toggle Button */}
+        {/* Floating Terminal Toggle */}
         {!showTerminal && (
           <button
             onClick={() => setShowTerminal(true)}
