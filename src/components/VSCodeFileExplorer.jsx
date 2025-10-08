@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ChevronRight, ChevronDown, File, Folder, FolderOpen, Plus, X, Save, Terminal as TerminalIcon, Play, RefreshCw, ExternalLink, Monitor, Code, Box } from 'lucide-react';
+import { ChevronRight, ChevronDown, File, Folder, FolderOpen, Plus, X, Save, Terminal as TerminalIcon, Play, RefreshCw, AlertCircle, CheckCircle, Box } from 'lucide-react';
 import Editor, { loader } from '@monaco-editor/react';
 
 const BACKEND_URL = 'http://localhost:5001';
@@ -32,7 +32,7 @@ const VSCodeFileExplorer = ({ generatedFiles }) => {
   const [terminalHeight, setTerminalHeight] = useState(250);
   const [terminalOutput, setTerminalOutput] = useState([
     { type: 'info', text: '🚀 Terminal Connected with StackBlitz Preview!' },
-    { type: 'info', text: 'Preview will open in StackBlitz WebContainer' },
+    { type: 'info', text: 'Real-time error detection enabled ✨' },
     { type: 'info', text: 'Type "help" for available commands' }
   ]);
   const [terminalInput, setTerminalInput] = useState('');
@@ -43,15 +43,18 @@ const VSCodeFileExplorer = ({ generatedFiles }) => {
   const [stackblitzVM, setStackblitzVM] = useState(null);
   const [isLoadingPreview, setIsLoadingPreview] = useState(false);
   const [previewReady, setPreviewReady] = useState(false);
-  const [devServerUrl, setDevServerUrl] = useState('');
+  const [fileErrors, setFileErrors] = useState({});
+  const [currentErrors, setCurrentErrors] = useState([]);
   
   const editorRef = useRef(null);
+  const monacoRef = useRef(null);
   const terminalInputRef = useRef(null);
   const terminalOutputRef = useRef(null);
   const previewContainerRef = useRef(null);
   const [isEditorReady, setIsEditorReady] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const sessionId = useRef(Date.now().toString());
+  const validationTimeoutRef = useRef(null);
 
   // Configure Monaco loader
   useEffect(() => {
@@ -113,6 +116,302 @@ const VSCodeFileExplorer = ({ generatedFiles }) => {
     return languageMap[ext] || 'plaintext';
   };
 
+  // Validate JavaScript/TypeScript/JSX code with real-time error detection
+  const validateCode = (code, language, filePath) => {
+    if (!monacoRef.current || !editorRef.current) return;
+
+    const monaco = monacoRef.current;
+    const model = editorRef.current.getModel();
+    if (!model) return;
+
+    const markers = [];
+    const errors = [];
+
+    // Only validate JavaScript-like languages
+    if (!['javascript', 'typescript'].includes(language)) {
+      monaco.editor.setModelMarkers(model, 'syntax', []);
+      setCurrentErrors([]);
+      setFileErrors(prev => ({ ...prev, [filePath]: [] }));
+      return;
+    }
+
+    try {
+      const lines = code.split('\n');
+      
+      // Track brackets, braces, parentheses
+      let openBraces = 0;
+      let openParens = 0;
+      let openBrackets = 0;
+      let inString = false;
+      let inMultilineComment = false;
+      let stringChar = null;
+      
+      lines.forEach((line, lineIndex) => {
+        const trimmed = line.trim();
+        
+        // Handle multiline comments
+        if (trimmed.includes('/*')) inMultilineComment = true;
+        if (trimmed.includes('*/')) inMultilineComment = false;
+        
+        // Skip comments and empty lines
+        if (inMultilineComment || trimmed.startsWith('//') || !trimmed) return;
+        
+        // Character-by-character analysis
+        for (let i = 0; i < line.length; i++) {
+          const char = line[i];
+          const prevChar = i > 0 ? line[i - 1] : '';
+          const nextChar = i < line.length - 1 ? line[i + 1] : '';
+          
+          // Handle single-line comments
+          if (char === '/' && nextChar === '/' && !inString) break;
+          
+          // Handle strings
+          if ((char === '"' || char === "'" || char === '`') && prevChar !== '\\') {
+            if (!inString) {
+              inString = true;
+              stringChar = char;
+            } else if (char === stringChar) {
+              inString = false;
+              stringChar = null;
+            }
+          }
+          
+          // Count brackets outside strings
+          if (!inString) {
+            if (char === '{') openBraces++;
+            if (char === '}') {
+              openBraces--;
+              if (openBraces < 0) {
+                markers.push({
+                  severity: monaco.MarkerSeverity.Error,
+                  startLineNumber: lineIndex + 1,
+                  startColumn: i + 1,
+                  endLineNumber: lineIndex + 1,
+                  endColumn: i + 2,
+                  message: 'Unexpected closing brace }',
+                });
+                errors.push(`Line ${lineIndex + 1}: Unexpected closing brace }`);
+                openBraces = 0;
+              }
+            }
+            
+            if (char === '(') openParens++;
+            if (char === ')') {
+              openParens--;
+              if (openParens < 0) {
+                markers.push({
+                  severity: monaco.MarkerSeverity.Error,
+                  startLineNumber: lineIndex + 1,
+                  startColumn: i + 1,
+                  endLineNumber: lineIndex + 1,
+                  endColumn: i + 2,
+                  message: 'Unexpected closing parenthesis )',
+                });
+                errors.push(`Line ${lineIndex + 1}: Unexpected closing parenthesis )`);
+                openParens = 0;
+              }
+            }
+            
+            if (char === '[') openBrackets++;
+            if (char === ']') {
+              openBrackets--;
+              if (openBrackets < 0) {
+                markers.push({
+                  severity: monaco.MarkerSeverity.Error,
+                  startLineNumber: lineIndex + 1,
+                  startColumn: i + 1,
+                  endLineNumber: lineIndex + 1,
+                  endColumn: i + 2,
+                  message: 'Unexpected closing bracket ]',
+                });
+                errors.push(`Line ${lineIndex + 1}: Unexpected closing bracket ]`);
+                openBrackets = 0;
+              }
+            }
+          }
+        }
+        
+        // Check for console.log (info only)
+        if (!inString && trimmed.includes('console.log')) {
+          const consoleIndex = line.indexOf('console.log');
+          markers.push({
+            severity: monaco.MarkerSeverity.Info,
+            startLineNumber: lineIndex + 1,
+            startColumn: consoleIndex + 1,
+            endLineNumber: lineIndex + 1,
+            endColumn: consoleIndex + 12,
+            message: 'console.log statement',
+          });
+        }
+      });
+      
+      // Check for unclosed brackets at end
+      if (openBraces > 0) {
+        markers.push({
+          severity: monaco.MarkerSeverity.Error,
+          startLineNumber: lines.length,
+          startColumn: 1,
+          endLineNumber: lines.length,
+          endColumn: lines[lines.length - 1].length + 1,
+          message: `Missing ${openBraces} closing brace${openBraces > 1 ? 's' : ''} }`,
+        });
+        errors.push(`Missing ${openBraces} closing brace${openBraces > 1 ? 's' : ''} }`);
+      }
+      
+      if (openParens > 0) {
+        markers.push({
+          severity: monaco.MarkerSeverity.Error,
+          startLineNumber: lines.length,
+          startColumn: 1,
+          endLineNumber: lines.length,
+          endColumn: lines[lines.length - 1].length + 1,
+          message: `Missing ${openParens} closing parenthesis${openParens > 1 ? 'es' : ''} )`,
+        });
+        errors.push(`Missing ${openParens} closing parenthesis${openParens > 1 ? 'es' : ''} )`);
+      }
+      
+      if (openBrackets > 0) {
+        markers.push({
+          severity: monaco.MarkerSeverity.Error,
+          startLineNumber: lines.length,
+          startColumn: 1,
+          endLineNumber: lines.length,
+          endColumn: lines[lines.length - 1].length + 1,
+          message: `Missing ${openBrackets} closing bracket${openBrackets > 1 ? 's' : ''} ]`,
+        });
+        errors.push(`Missing ${openBrackets} closing bracket${openBrackets > 1 ? 's' : ''} ]`);
+      }
+      
+      if (inString) {
+        markers.push({
+          severity: monaco.MarkerSeverity.Error,
+          startLineNumber: lines.length,
+          startColumn: 1,
+          endLineNumber: lines.length,
+          endColumn: lines[lines.length - 1].length + 1,
+          message: 'Unterminated string literal',
+        });
+        errors.push('Unterminated string literal');
+      }
+      
+    } catch (err) {
+      console.error('Validation error:', err);
+    }
+
+    // Set markers in editor
+    monaco.editor.setModelMarkers(model, 'syntax', markers);
+    
+    // Update error state
+    setCurrentErrors(errors);
+    setFileErrors(prev => ({ ...prev, [filePath]: errors }));
+    
+    // Log errors to terminal
+    if (errors.length > 0 && filePath === activeTab) {
+      setTerminalOutput(prev => {
+        const filtered = prev.filter(item => !item.text.startsWith('❌ Error in') && !item.text.startsWith('✅ No syntax errors'));
+        return [...filtered, { 
+          type: 'error', 
+          text: `❌ Error in ${filePath.split('/').pop()}: Found ${errors.length} error${errors.length > 1 ? 's' : ''}` 
+        }];
+      });
+    } else if (errors.length === 0 && filePath === activeTab) {
+      setTerminalOutput(prev => {
+        const filtered = prev.filter(item => !item.text.startsWith('❌ Error in') && !item.text.startsWith('✅ No syntax errors'));
+        return [...filtered, { 
+          type: 'success', 
+          text: `✅ No syntax errors in ${filePath.split('/').pop()}` 
+        }];
+      });
+    }
+  };
+
+  // Handle editor content change with debounced validation
+  const handleEditorChange = (value) => {
+    if (activeTab && activeTab !== 'preview') {
+      setFileContents(prev => ({
+        ...prev,
+        [activeTab]: value
+      }));
+      
+      // Debounce validation
+      if (validationTimeoutRef.current) {
+        clearTimeout(validationTimeoutRef.current);
+      }
+      
+      validationTimeoutRef.current = setTimeout(() => {
+        const fileName = activeTab.split('/').pop();
+        const language = getLanguageFromFileName(fileName);
+        validateCode(value, language, activeTab);
+      }, 500);
+      
+      // Update in StackBlitz if available
+      if (stackblitzVM && previewReady) {
+        try {
+          stackblitzVM.applyFsDiff({
+            create: {
+              [activeTab]: value
+            }
+          });
+        } catch (error) {
+          console.warn('Could not update StackBlitz:', error);
+        }
+      }
+    }
+  };
+
+  // Handle editor mount
+  const handleEditorDidMount = (editor, monaco) => {
+    editorRef.current = editor;
+    monacoRef.current = monaco;
+    setIsEditorReady(true);
+    
+    // Define custom theme
+    monaco.editor.defineTheme('vscode-dark', {
+      base: 'vs-dark',
+      inherit: true,
+      rules: [
+        { token: 'comment', foreground: '6A9955' },
+        { token: 'keyword', foreground: '569CD6' },
+        { token: 'string', foreground: 'CE9178' },
+        { token: 'number', foreground: 'B5CEA8' },
+        { token: 'function', foreground: 'DCDCAA' },
+      ],
+      colors: {
+        'editor.background': '#1E1E1E',
+        'editor.foreground': '#D4D4D4',
+        'editorError.foreground': '#F48771',
+        'editorWarning.foreground': '#CCA700',
+        'editorInfo.foreground': '#75BEFF',
+      }
+    });
+    
+    monaco.editor.setTheme('vscode-dark');
+    
+    // Configure language features
+    monaco.languages.typescript.javascriptDefaults.setDiagnosticsOptions({
+      noSemanticValidation: false,
+      noSyntaxValidation: false
+    });
+    
+    monaco.languages.typescript.javascriptDefaults.setCompilerOptions({
+      target: monaco.languages.typescript.ScriptTarget.ESNext,
+      allowNonTsExtensions: true,
+      moduleResolution: monaco.languages.typescript.ModuleResolutionKind.NodeJs,
+      module: monaco.languages.typescript.ModuleKind.CommonJS,
+      noEmit: true,
+      jsx: monaco.languages.typescript.JsxEmit.React,
+      allowJs: true,
+    });
+    
+    // Initial validation
+    if (activeTab && activeTab !== 'preview') {
+      const content = fileContents[activeTab] || '';
+      const fileName = activeTab.split('/').pop();
+      const language = getLanguageFromFileName(fileName);
+      setTimeout(() => validateCode(content, language, activeTab), 100);
+    }
+  };
+
   // Collect all files for StackBlitz
   const collectAllFiles = (node, path = '', files = {}) => {
     if (node.type === 'file') {
@@ -139,17 +438,16 @@ const VSCodeFileExplorer = ({ generatedFiles }) => {
     const hasAngular = fileNames.some(f => f.includes('angular'));
     const hasTypeScript = fileNames.some(f => f.endsWith('.ts') || f.endsWith('.tsx'));
 
-    // StackBlitz valid templates: node, javascript, typescript, angular-cli, create-react-app, html, polymer, vue
     if (hasAngular) return 'angular-cli';
     if (hasVue) return 'vue';
     if (hasReact && hasTypeScript) return 'create-react-app';
     if (hasReact) return 'create-react-app';
     if (hasTypeScript) return 'typescript';
     
-    return 'javascript'; // default - works for HTML/CSS/JS
+    return 'javascript';
   };
 
-  // Ensure package.json exists with proper dependencies
+  // Ensure package.json exists
   const ensurePackageJson = (files, template) => {
     let packageJson = {};
     
@@ -161,7 +459,6 @@ const VSCodeFileExplorer = ({ generatedFiles }) => {
       }
     }
 
-    // Set default values based on template
     const defaults = {
       name: 'stackblitz-project',
       version: '1.0.0',
@@ -172,7 +469,6 @@ const VSCodeFileExplorer = ({ generatedFiles }) => {
       devDependencies: packageJson.devDependencies || {}
     };
 
-    // Add template-specific dependencies
     if (template.includes('react')) {
       defaults.dependencies.react = '^18.2.0';
       defaults.dependencies['react-dom'] = '^18.2.0';
@@ -206,7 +502,6 @@ const VSCodeFileExplorer = ({ generatedFiles }) => {
       return files;
     }
 
-    // Create index.html based on template
     let html = '';
     
     if (template.includes('react')) {
@@ -250,7 +545,6 @@ const VSCodeFileExplorer = ({ generatedFiles }) => {
     }]);
 
     try {
-      // Dynamically load StackBlitz SDK
       if (!window.StackBlitzSDK) {
         const script = document.createElement('script');
         script.src = 'https://unpkg.com/@stackblitz/sdk@1/bundles/sdk.umd.js';
@@ -270,17 +564,13 @@ const VSCodeFileExplorer = ({ generatedFiles }) => {
 
       const sdk = window.StackBlitzSDK;
 
-      // Collect all files
       let files = collectAllFiles(fileSystem);
-      
-      // Detect project type
       const template = detectProjectType(files);
       setTerminalOutput(prev => [...prev, { 
         type: 'info', 
         text: `📦 Detected project type: ${template}` 
       }]);
 
-      // Ensure necessary files exist
       files = ensurePackageJson(files, template);
       files = ensureIndexHtml(files, template);
 
@@ -289,7 +579,6 @@ const VSCodeFileExplorer = ({ generatedFiles }) => {
         text: `📄 Prepared ${Object.keys(files).length} files` 
       }]);
 
-      // Prepare StackBlitz project
       const project = {
         title: 'AI Generated Project',
         description: 'Generated with AI',
@@ -303,7 +592,6 @@ const VSCodeFileExplorer = ({ generatedFiles }) => {
         }
       };
 
-      // Clear preview container
       if (previewContainerRef.current) {
         previewContainerRef.current.innerHTML = '';
       }
@@ -313,7 +601,6 @@ const VSCodeFileExplorer = ({ generatedFiles }) => {
         text: '⚡ Embedding StackBlitz...' 
       }]);
 
-      // Embed StackBlitz
       const vm = await sdk.embedProject(
         previewContainerRef.current,
         project,
@@ -337,7 +624,7 @@ const VSCodeFileExplorer = ({ generatedFiles }) => {
         text: '✅ StackBlitz preview loaded successfully!' 
       }, {
         type: 'info',
-        text: '💡 Your app is now running in a real WebContainer'
+        text: '💡 Your app is now running with live reload'
       }]);
 
     } catch (error) {
@@ -346,187 +633,8 @@ const VSCodeFileExplorer = ({ generatedFiles }) => {
       setTerminalOutput(prev => [...prev, { 
         type: 'error', 
         text: `❌ StackBlitz failed: ${error.message}` 
-      }, {
-        type: 'info',
-        text: '💡 Falling back to simple iframe preview...'
       }]);
-      
-      // Fallback to simple preview
-      generateSimplePreview();
     }
-  };
-
-  // Generate simple iframe preview as fallback
-  const generateSimplePreview = () => {
-    const allFiles = collectAllFiles(fileSystem);
-    const entryPoint = findEntryPoint(fileSystem);
-
-    if (!entryPoint) {
-      const previewHtml = `
-        <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; font-family: sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 40px;">
-          <h1 style="font-size: 48px; margin-bottom: 20px;">🚀 Project Generated!</h1>
-          <p style="font-size: 20px; margin-bottom: 30px;">Your project files are ready</p>
-          <div style="background: rgba(255,255,255,0.1); padding: 20px; border-radius: 10px; backdrop-filter: blur(10px);">
-            <p style="margin: 10px 0;">📁 ${Object.keys(allFiles).length} files generated</p>
-            <p style="margin: 10px 0;">💡 Click "Open Preview" above to see it in StackBlitz</p>
-          </div>
-        </div>
-      `;
-      
-      if (previewContainerRef.current) {
-        previewContainerRef.current.innerHTML = `<iframe style="width:100%;height:100%;border:0" srcdoc="${previewHtml.replace(/"/g, '&quot;')}"></iframe>`;
-      }
-      return;
-    }
-
-    // Generate preview based on file type
-    let previewHtml = '';
-    
-    if (entryPoint.type === 'html') {
-      let html = entryPoint.file.content || '';
-      
-      // Inject CSS files
-      Object.keys(allFiles).forEach(filePath => {
-        if (filePath.endsWith('.css')) {
-          const styleTag = `<style>\n${allFiles[filePath]}\n</style>`;
-          html = html.replace('</head>', `${styleTag}\n</head>`);
-        }
-      });
-      
-      // Inject JS files
-      Object.keys(allFiles).forEach(filePath => {
-        if (filePath.endsWith('.js') && !filePath.includes('node_modules')) {
-          const scriptTag = `<script>\n${allFiles[filePath]}\n</script>`;
-          html = html.replace('</body>', `${scriptTag}\n</body>`);
-        }
-      });
-      
-      previewHtml = html;
-    } else if (entryPoint.type === 'react') {
-      previewHtml = generateReactPreview(allFiles);
-    }
-
-    if (previewContainerRef.current) {
-      previewContainerRef.current.innerHTML = `<iframe style="width:100%;height:100%;border:0" srcdoc="${previewHtml.replace(/"/g, '&quot;')}"></iframe>`;
-    }
-    
-    setPreviewReady(true);
-    setTerminalOutput(prev => [...prev, { 
-      type: 'success', 
-      text: '✅ Simple preview loaded' 
-    }]);
-  };
-
-  // Find entry point file
-  const findEntryPoint = (node, path = '') => {
-    if (node.type === 'file') {
-      const fileName = node.name.toLowerCase();
-      const fullPath = path ? `${path}/${node.name}` : node.name;
-      
-      if (fileName === 'index.html') return { file: node, path: fullPath, type: 'html' };
-      if (fileName === 'app.jsx' || fileName === 'app.tsx' || fileName === 'app.js') 
-        return { file: node, path: fullPath, type: 'react' };
-      if (fileName === 'main.jsx' || fileName === 'main.tsx') 
-        return { file: node, path: fullPath, type: 'react' };
-    }
-    
-    if (node.type === 'folder' && node.children) {
-      for (const child of node.children) {
-        const currentPath = path ? `${path}/${node.name}` : node.name;
-        const result = findEntryPoint(child, currentPath);
-        if (result) return result;
-      }
-    }
-    
-    return null;
-  };
-
-  // Generate React preview for fallback
-  const generateReactPreview = (allFiles) => {
-    const jsxFiles = Object.keys(allFiles)
-      .filter(path => 
-        (path.endsWith('.jsx') || path.endsWith('.js')) &&
-        !path.includes('node_modules')
-      );
-
-    let allCode = '';
-    jsxFiles.forEach(filePath => {
-      const code = allFiles[filePath];
-      const cleanCode = code
-        .split('\n')
-        .filter(line => !line.trim().startsWith('import ') && !line.trim().startsWith('export default'))
-        .join('\n');
-      allCode += cleanCode + '\n\n';
-    });
-
-    const cssFiles = Object.keys(allFiles).filter(path => path.endsWith('.css'));
-    const styles = cssFiles.map(path => allFiles[path]).join('\n\n');
-
-    return `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>React Preview</title>
-  <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
-  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { 
-      margin: 0; 
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
-    }
-    #root { min-height: 100vh; }
-    ${styles}
-  </style>
-</head>
-<body>
-  <div id="root"></div>
-  <script type="text/babel">
-    const { useState, useEffect, useRef } = React;
-    
-    ${allCode}
-    
-    const root = ReactDOM.createRoot(document.getElementById('root'));
-    
-    try {
-      if (typeof App !== 'undefined') {
-        root.render(<App />);
-      } else {
-        const possibleComponents = ['Calculator', 'TodoApp', 'Counter', 'Main'];
-        let rendered = false;
-        
-        for (const compName of possibleComponents) {
-          if (typeof window[compName] !== 'undefined') {
-            const Component = window[compName];
-            root.render(<Component />);
-            rendered = true;
-            break;
-          }
-        }
-        
-        if (!rendered) {
-          root.render(
-            <div style={{padding: '40px', textAlign: 'center'}}>
-              <h1>✅ React App Ready</h1>
-              <p>Export your component as "App" or one of: Calculator, TodoApp, Counter</p>
-            </div>
-          );
-        }
-      }
-    } catch (error) {
-      root.render(
-        <div style={{padding: '40px', color: 'red'}}>
-          <h2>Error</h2>
-          <pre>{error.toString()}</pre>
-        </div>
-      );
-    }
-  </script>
-</body>
-</html>`;
   };
 
   // Execute real command via backend
@@ -674,7 +782,37 @@ const VSCodeFileExplorer = ({ generatedFiles }) => {
           { type: 'output', text: '  clear      - Clear terminal' },
           { type: 'output', text: '  refresh    - Refresh file explorer' },
           { type: 'output', text: '  preview    - Open StackBlitz preview' },
+          { type: 'output', text: '  errors     - Show all syntax errors' },
         ]);
+        break;
+
+      case 'errors':
+        const totalErrors = Object.values(fileErrors).flat().length;
+        if (totalErrors === 0) {
+          setTerminalOutput(prev => [...prev, { 
+            type: 'success', 
+            text: '✅ No errors found in any files!' 
+          }]);
+        } else {
+          setTerminalOutput(prev => [...prev, { 
+            type: 'error', 
+            text: `❌ Found ${totalErrors} total error${totalErrors > 1 ? 's' : ''}:` 
+          }]);
+          Object.entries(fileErrors).forEach(([file, errs]) => {
+            if (errs.length > 0) {
+              setTerminalOutput(prev => [...prev, { 
+                type: 'error', 
+                text: `  ${file}: ${errs.length} error${errs.length > 1 ? 's' : ''}` 
+              }]);
+              errs.forEach(err => {
+                setTerminalOutput(prev => [...prev, { 
+                  type: 'output', 
+                  text: `    - ${err}` 
+                }]);
+              });
+            }
+          });
+        }
         break;
 
       case 'preview':
@@ -683,6 +821,10 @@ const VSCodeFileExplorer = ({ generatedFiles }) => {
 
       case 'refresh':
         await refreshFileSystem();
+        setTerminalOutput(prev => [...prev, { 
+          type: 'success', 
+          text: '✅ File system refreshed' 
+        }]);
         break;
 
       case 'clear':
@@ -833,12 +975,10 @@ const VSCodeFileExplorer = ({ generatedFiles }) => {
         text: '✅ Opening preview automatically...'
       }]);
       
-      // Sync to backend (optional)
       syncAIFilesToBackend(generatedFiles).catch(err => {
         console.warn('Backend sync failed:', err);
       });
 
-      // Auto-open StackBlitz preview
       setTimeout(() => {
         openInStackBlitz();
       }, 1000);
@@ -915,51 +1055,13 @@ const VSCodeFileExplorer = ({ generatedFiles }) => {
     if (activeTab === path) {
       setActiveTab(newTabs[newTabs.length - 1] || null);
     }
-  };
-
-  // Update file content
-  const updateFileContent = (content) => {
-    if (activeTab && activeTab !== 'preview') {
-      setFileContents(prev => ({
-        ...prev,
-        [activeTab]: content
-      }));
-      
-      // Update in StackBlitz if available
-      if (stackblitzVM && previewReady) {
-        try {
-          stackblitzVM.applyFsDiff({
-            create: {
-              [activeTab]: content
-            }
-          });
-        } catch (error) {
-          console.warn('Could not update StackBlitz:', error);
-        }
-      }
-    }
-  };
-
-  // Handle editor mount
-  const handleEditorDidMount = (editor, monaco) => {
-    editorRef.current = editor;
-    setIsEditorReady(true);
     
-    monaco.editor.defineTheme('vscode-dark', {
-      base: 'vs-dark',
-      inherit: true,
-      rules: [
-        { token: 'comment', foreground: '6A9955' },
-        { token: 'keyword', foreground: '569CD6' },
-        { token: 'string', foreground: 'CE9178' },
-      ],
-      colors: {
-        'editor.background': '#1E1E1E',
-        'editor.foreground': '#D4D4D4',
-      }
+    // Clear errors for closed file
+    setFileErrors(prev => {
+      const next = { ...prev };
+      delete next[path];
+      return next;
     });
-    
-    monaco.editor.setTheme('vscode-dark');
   };
 
   // Render tree
@@ -967,6 +1069,7 @@ const VSCodeFileExplorer = ({ generatedFiles }) => {
     const currentPath = path ? `${path}/${node.name}` : node.name;
     const isExpanded = expandedFolders.has(currentPath);
     const isSelected = selectedFile === currentPath;
+    const hasErrors = fileErrors[currentPath] && fileErrors[currentPath].length > 0;
 
     if (node.type === 'folder') {
       return (
@@ -1040,8 +1143,9 @@ const VSCodeFileExplorer = ({ generatedFiles }) => {
         }`}
         onClick={() => openFile(currentPath, node)}
       >
-        <File size={16} className="text-gray-400" />
+        <File size={16} className={hasErrors ? "text-red-400" : "text-gray-400"} />
         <span className="text-sm">{node.name}</span>
+        {hasErrors && <AlertCircle size={12} className="text-red-400 ml-auto" />}
       </div>
     );
   };
@@ -1089,24 +1193,30 @@ const VSCodeFileExplorer = ({ generatedFiles }) => {
           </div>
 
           {/* File Tabs */}
-          {openTabs.filter(tab => tab !== 'preview').map(tab => (
-            <div
-              key={tab}
-              className={`flex items-center gap-2 px-4 py-2 border-r border-gray-700 cursor-pointer ${
-                activeTab === tab ? 'bg-gray-900' : 'hover:bg-gray-700'
-              }`}
-              onClick={() => setActiveTab(tab)}
-            >
-              <Code size={14} />
-              <span className="text-sm">{tab.split('/').pop()}</span>
-              <button
-                onClick={(e) => closeTab(tab, e)}
-                className="hover:bg-gray-600 rounded p-0.5"
+          {openTabs.filter(tab => tab !== 'preview').map(tab => {
+            const tabErrors = fileErrors[tab] || [];
+            const hasTabErrors = tabErrors.length > 0;
+            
+            return (
+              <div
+                key={tab}
+                className={`flex items-center gap-2 px-4 py-2 border-r border-gray-700 cursor-pointer ${
+                  activeTab === tab ? 'bg-gray-900' : 'hover:bg-gray-700'
+                }`}
+                onClick={() => setActiveTab(tab)}
               >
-                <X size={12} />
-              </button>
-            </div>
-          ))}
+                <File size={14} className={hasTabErrors ? "text-red-400" : ""} />
+                <span className="text-sm">{tab.split('/').pop()}</span>
+                {hasTabErrors && <AlertCircle size={12} className="text-red-400" />}
+                <button
+                  onClick={(e) => closeTab(tab, e)}
+                  className="hover:bg-gray-600 rounded p-0.5"
+                >
+                  <X size={12} />
+                </button>
+              </div>
+            );
+          })}
         </div>
 
         {/* Content Area */}
@@ -1168,8 +1278,8 @@ const VSCodeFileExplorer = ({ generatedFiles }) => {
                       Open Preview
                     </button>
                     <div className="mt-8 text-sm text-gray-500">
-                      <p>✨ Supports: React, Vue, Angular, Node.js, and more</p>
-                      <p>⚡ Runs actual dev servers with hot reload</p>
+                      <p>✨ Real-time error detection enabled</p>
+                      <p>⚡ Supports: React, Vue, Angular, Node.js, and more</p>
                       <p>🔧 Full npm package support</p>
                     </div>
                   </div>
@@ -1184,25 +1294,37 @@ const VSCodeFileExplorer = ({ generatedFiles }) => {
             </div>
           ) : activeTab ? (
             // Monaco Editor
-            <Editor
-              height="100%"
-              language={currentLanguage}
-              value={fileContents[activeTab] || ''}
-              onChange={updateFileContent}
-              onMount={handleEditorDidMount}
-              theme="vscode-dark"
-              loading={<div className="flex items-center justify-center h-full">Loading editor...</div>}
-              options={{
-                fontSize: 14,
-                minimap: { enabled: true },
-                scrollBeyondLastLine: false,
-                automaticLayout: true,
-                tabSize: 2,
-                wordWrap: 'on',
-                formatOnPaste: true,
-                formatOnType: true,
-              }}
-            />
+            <div className="h-full flex flex-col">
+              {currentErrors.length > 0 && (
+                <div className="bg-red-900 bg-opacity-20 border-b border-red-700 px-4 py-2">
+                  <div className="flex items-center gap-2 text-red-400 text-sm">
+                    <AlertCircle size={16} />
+                    <span>{currentErrors.length} error{currentErrors.length > 1 ? 's' : ''} found</span>
+                  </div>
+                </div>
+              )}
+              <Editor
+                height="100%"
+                language={currentLanguage}
+                value={fileContents[activeTab] || ''}
+                onChange={handleEditorChange}
+                onMount={handleEditorDidMount}
+                theme="vscode-dark"
+                loading={<div className="flex items-center justify-center h-full">Loading editor...</div>}
+                options={{
+                  fontSize: 14,
+                  minimap: { enabled: true },
+                  scrollBeyondLastLine: false,
+                  automaticLayout: true,
+                  tabSize: 2,
+                  wordWrap: 'on',
+                  formatOnPaste: true,
+                  formatOnType: true,
+                  quickSuggestions: true,
+                  suggestOnTriggerCharacters: true,
+                }}
+              />
+            </div>
           ) : (
             <div className="flex items-center justify-center h-full text-gray-500">
               <div className="text-center">
@@ -1226,6 +1348,12 @@ const VSCodeFileExplorer = ({ generatedFiles }) => {
                   <TerminalIcon size={14} />
                   <span className="text-xs font-semibold">Terminal</span>
                   <span className="text-xs text-gray-400">{currentDirectory}</span>
+                  {Object.values(fileErrors).flat().length > 0 && (
+                    <span className="text-xs text-red-400 flex items-center gap-1">
+                      <AlertCircle size={12} />
+                      {Object.values(fileErrors).flat().length} errors
+                    </span>
+                  )}
                 </div>
                 <button
                   onClick={() => setShowTerminal(false)}
@@ -1265,7 +1393,7 @@ const VSCodeFileExplorer = ({ generatedFiles }) => {
                   onChange={(e) => setTerminalInput(e.target.value)}
                   onKeyDown={handleTerminalKeyDown}
                   className="flex-1 bg-transparent outline-none text-sm font-mono"
-                  placeholder="Type 'preview' to open StackBlitz..."
+                  placeholder="Type 'help' for commands or 'errors' to see all errors..."
                   disabled={isExecuting}
                   autoFocus
                 />
