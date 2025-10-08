@@ -2,6 +2,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import { ChevronRight, ChevronDown, File, Folder, FolderOpen, Plus, X, Save, Terminal as TerminalIcon } from 'lucide-react';
 import Editor, { loader } from '@monaco-editor/react';
 
+const BACKEND_URL = 'http://localhost:5001';
+
 const VSCodeFileExplorer = ({ generatedFiles }) => {
   const [fileSystem, setFileSystem] = useState(generatedFiles || {
     name: 'project-root',
@@ -26,18 +28,24 @@ const VSCodeFileExplorer = ({ generatedFiles }) => {
   const [showNewFileInput, setShowNewFileInput] = useState(null);
   const [newItemName, setNewItemName] = useState('');
   const [newItemType, setNewItemType] = useState('file');
-  const [showTerminal, setShowTerminal] = useState(false);
-  const [terminalHeight, setTerminalHeight] = useState(200);
-  const [terminalOutput, setTerminalOutput] = useState([{ type: 'info', text: 'Welcome to the integrated terminal!' }]);
+  const [showTerminal, setShowTerminal] = useState(true);
+  const [terminalHeight, setTerminalHeight] = useState(250);
+  const [terminalOutput, setTerminalOutput] = useState([
+    { type: 'info', text: '🚀 Real Terminal Connected!' },
+    { type: 'info', text: 'You can now run actual commands like: npm install, npm run dev, touch file.txt, etc.' },
+    { type: 'info', text: 'Type "help" for simulated commands or use real shell commands.' }
+  ]);
   const [terminalInput, setTerminalInput] = useState('');
   const [commandHistory, setCommandHistory] = useState([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
-  const [currentDirectory, setCurrentDirectory] = useState('/project-root');
+  const [currentDirectory, setCurrentDirectory] = useState('.');
+  const [isExecuting, setIsExecuting] = useState(false);
   const editorRef = useRef(null);
   const terminalInputRef = useRef(null);
   const terminalOutputRef = useRef(null);
   const [isEditorReady, setIsEditorReady] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const sessionId = useRef(Date.now().toString());
 
   // Configure Monaco loader
   useEffect(() => {
@@ -47,6 +55,53 @@ const VSCodeFileExplorer = ({ generatedFiles }) => {
       } 
     });
   }, []);
+
+  // Check backend connection and load initial file system
+  useEffect(() => {
+    const checkBackend = async () => {
+      try {
+        console.log('Attempting to connect to backend at:', BACKEND_URL);
+        const response = await fetch(`${BACKEND_URL}/api/health`);
+        
+        if (response.ok) {
+          const data = await response.json();
+          console.log('Backend health check:', data);
+          
+          setTerminalOutput(prev => [...prev, { 
+            type: 'success', 
+            text: `✅ Backend connected at ${BACKEND_URL}` 
+          }]);
+          
+          // Only load workspace if no AI-generated files
+          if (!generatedFiles) {
+            setTerminalOutput(prev => [...prev, { 
+              type: 'info', 
+              text: '🔄 Loading workspace files from disk...' 
+            }]);
+            
+            await refreshFileSystem();
+          }
+        } else {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+      } catch (error) {
+        console.error('Backend connection error:', error);
+        setTerminalOutput(prev => [...prev, { 
+          type: 'error', 
+          text: `❌ Cannot connect to backend at ${BACKEND_URL}` 
+        }, {
+          type: 'error',
+          text: `Error: ${error.message}`
+        }, {
+          type: 'info',
+          text: 'Make sure backend is running: cd backend && npm start'
+        }]);
+      }
+    };
+    
+    // Retry connection after a short delay
+    setTimeout(checkBackend, 1000);
+  }, [generatedFiles]);
 
   // Auto-scroll terminal to bottom
   useEffect(() => {
@@ -88,29 +143,156 @@ const VSCodeFileExplorer = ({ generatedFiles }) => {
     return languageMap[ext] || 'plaintext';
   };
 
-  // Find file/folder by path
-  const findByPath = (path) => {
-    const parts = path.split('/').filter(Boolean);
-    let current = fileSystem;
-    
-    for (const part of parts) {
-      if (current.name === part) continue;
-      if (!current.children) return null;
-      current = current.children.find(c => c.name === part);
-      if (!current) return null;
+  // Execute real command via backend
+  const executeRealCommand = async (command) => {
+    setIsExecuting(true);
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/execute`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          command,
+          cwd: currentDirectory,
+          sessionId: sessionId.current
+        })
+      });
+
+      const data = await response.json();
+      
+      if (data.output) {
+        // Split output by lines and add each line
+        data.output.split('\n').forEach(line => {
+          if (line.trim()) {
+            setTerminalOutput(prev => [...prev, { 
+              type: data.success ? 'output' : 'error', 
+              text: line 
+            }]);
+          }
+        });
+      }
+
+      if (!data.success && data.error) {
+        setTerminalOutput(prev => [...prev, { 
+          type: 'error', 
+          text: `Error: ${data.error}` 
+        }]);
+      }
+
+      // Refresh file system after commands that might modify files
+      if (command.includes('touch') || command.includes('mkdir') || 
+          command.includes('rm') || command.includes('npm') || 
+          command.includes('git') || command.includes('>') ||
+          command.includes('mv') || command.includes('cp')) {
+        setTimeout(() => refreshFileSystem(), 500);
+      }
+    } catch (error) {
+      setTerminalOutput(prev => [...prev, { 
+        type: 'error', 
+        text: `Connection error: ${error.message}. Make sure backend is running!` 
+      }]);
+    } finally {
+      setIsExecuting(false);
     }
-    return current;
   };
 
-  // List directory contents
-  const listDirectory = (path) => {
-    const node = findByPath(path);
-    if (!node || node.type !== 'folder') return null;
-    return node.children || [];
+  // Build file tree from backend
+  const buildFileTree = async (dirPath = '.') => {
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/listDir`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ dirPath })
+      });
+
+      const data = await response.json();
+      if (!data.success || !data.files) return null;
+
+      const children = await Promise.all(
+        data.files.map(async (file) => {
+          const fullPath = dirPath === '.' ? file.name : `${dirPath}/${file.name}`;
+          
+          if (file.isDirectory) {
+            const subChildren = await buildFileTree(fullPath);
+            return {
+              name: file.name,
+              type: 'folder',
+              children: subChildren || []
+            };
+          } else {
+            // Try to read file content
+            let content = '';
+            try {
+              const fileResponse = await fetch(`${BACKEND_URL}/api/readFile`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ filePath: fullPath })
+              });
+              const fileData = await fileResponse.json();
+              if (fileData.success) {
+                content = fileData.content;
+              }
+            } catch (err) {
+              console.log('Could not read file:', fullPath);
+            }
+            
+            return {
+              name: file.name,
+              type: 'file',
+              content: content
+            };
+          }
+        })
+      );
+
+      return children;
+    } catch (error) {
+      console.error('Error building file tree:', error);
+      return null;
+    }
+  };
+
+  // Refresh file system from backend
+  const refreshFileSystem = async () => {
+    try {
+      setTerminalOutput(prev => [...prev, { 
+        type: 'info', 
+        text: '🔄 Refreshing file explorer...' 
+      }]);
+
+      const children = await buildFileTree('.');
+      
+      if (children) {
+        const newFileSystem = {
+          name: 'workspace',
+          type: 'folder',
+          children: children
+        };
+        
+        setFileSystem(newFileSystem);
+        setExpandedFolders(new Set(['workspace']));
+        
+        setTerminalOutput(prev => [...prev, { 
+          type: 'success', 
+          text: '✅ File explorer refreshed!' 
+        }]);
+      }
+    } catch (error) {
+      console.error('Error refreshing file system:', error);
+      setTerminalOutput(prev => [...prev, { 
+        type: 'error', 
+        text: `❌ Failed to refresh: ${error.message}` 
+      }]);
+    }
   };
 
   // Execute terminal command
-  const executeCommand = (cmd) => {
+  const executeCommand = async (cmd) => {
     const trimmedCmd = cmd.trim();
     if (!trimmedCmd) return;
 
@@ -120,122 +302,72 @@ const VSCodeFileExplorer = ({ generatedFiles }) => {
 
     const [command, ...args] = trimmedCmd.split(' ');
 
+    // Handle built-in commands
     switch (command.toLowerCase()) {
       case 'help':
         setTerminalOutput(prev => [...prev, 
-          { type: 'output', text: 'Available commands:' },
+          { type: 'output', text: '📚 Available Commands:' },
+          { type: 'output', text: '' },
+          { type: 'output', text: '🔧 Built-in Commands:' },
           { type: 'output', text: '  help     - Show this help message' },
           { type: 'output', text: '  clear    - Clear terminal' },
-          { type: 'output', text: '  ls       - List directory contents' },
-          { type: 'output', text: '  pwd      - Print working directory' },
-          { type: 'output', text: '  cd       - Change directory' },
-          { type: 'output', text: '  cat      - Display file contents' },
-          { type: 'output', text: '  echo     - Print text' },
-          { type: 'output', text: '  date     - Show current date/time' },
-          { type: 'output', text: '  tree     - Show directory tree' },
+          { type: 'output', text: '  cls      - Clear terminal (Windows)' },
+          { type: 'output', text: '  refresh  - Refresh file explorer from disk' },
+          { type: 'output', text: '' },
+          { type: 'output', text: '💻 Real Shell Commands (examples):' },
+          { type: 'output', text: '  ls / dir           - List files' },
+          { type: 'output', text: '  pwd                - Current directory' },
+          { type: 'output', text: '  cd <dir>           - Change directory' },
+          { type: 'output', text: '  touch <file>       - Create file' },
+          { type: 'output', text: '  mkdir <dir>        - Create directory' },
+          { type: 'output', text: '  cat <file>         - View file' },
+          { type: 'output', text: '  echo <text>        - Print text' },
+          { type: 'output', text: '  npm init           - Initialize npm' },
+          { type: 'output', text: '  npm install        - Install packages' },
+          { type: 'output', text: '  npm run dev        - Run dev server' },
+          { type: 'output', text: '  git init           - Initialize git' },
+          { type: 'output', text: '  python <file>      - Run Python' },
+          { type: 'output', text: '  node <file>        - Run Node.js' },
         ]);
         break;
 
+      case 'refresh':
+        await refreshFileSystem();
+        break;
+
       case 'clear':
+      case 'cls':
         setTerminalOutput([]);
         break;
 
-      case 'ls':
-        const contents = listDirectory(currentDirectory);
-        if (contents) {
-          if (contents.length === 0) {
-            setTerminalOutput(prev => [...prev, { type: 'output', text: '(empty directory)' }]);
-          } else {
-            contents.forEach(item => {
-              const icon = item.type === 'folder' ? '📁' : '📄';
-              setTerminalOutput(prev => [...prev, { type: 'output', text: `${icon} ${item.name}` }]);
-            });
-          }
-        } else {
-          setTerminalOutput(prev => [...prev, { type: 'error', text: 'Directory not found' }]);
-        }
-        break;
-
-      case 'pwd':
-        setTerminalOutput(prev => [...prev, { type: 'output', text: currentDirectory }]);
-        break;
-
       case 'cd':
-        if (!args[0]) {
-          setCurrentDirectory('/project-root');
-          setTerminalOutput(prev => [...prev, { type: 'output', text: 'Changed to /project-root' }]);
-        } else if (args[0] === '..') {
-          const parts = currentDirectory.split('/').filter(Boolean);
-          if (parts.length > 1) {
-            parts.pop();
-            const newPath = '/' + parts.join('/');
-            setCurrentDirectory(newPath);
-            setTerminalOutput(prev => [...prev, { type: 'output', text: `Changed to ${newPath}` }]);
-          }
+        if (args[0]) {
+          const newDir = args[0] === '..' 
+            ? (currentDirectory.split('/').slice(0, -1).join('/') || '.')
+            : args[0].startsWith('/') ? args[0] : `${currentDirectory}/${args[0]}`;
+          setCurrentDirectory(newDir);
+          setTerminalOutput(prev => [...prev, { 
+            type: 'success', 
+            text: `Changed directory to: ${newDir}` 
+          }]);
         } else {
-          const newPath = args[0].startsWith('/') ? args[0] : `${currentDirectory}/${args[0]}`;
-          const node = findByPath(newPath);
-          if (node && node.type === 'folder') {
-            setCurrentDirectory(newPath);
-            setTerminalOutput(prev => [...prev, { type: 'output', text: `Changed to ${newPath}` }]);
-          } else {
-            setTerminalOutput(prev => [...prev, { type: 'error', text: 'Directory not found or not a folder' }]);
-          }
+          setCurrentDirectory('.');
+          setTerminalOutput(prev => [...prev, { 
+            type: 'success', 
+            text: 'Changed to workspace root' 
+          }]);
         }
-        break;
-
-      case 'cat':
-        if (!args[0]) {
-          setTerminalOutput(prev => [...prev, { type: 'error', text: 'Usage: cat <filename>' }]);
-        } else {
-          const filePath = args[0].startsWith('/') ? args[0] : `${currentDirectory}/${args[0]}`;
-          const node = findByPath(filePath);
-          if (node && node.type === 'file') {
-            const content = node.content || '(empty file)';
-            content.split('\n').forEach(line => {
-              setTerminalOutput(prev => [...prev, { type: 'output', text: line }]);
-            });
-          } else {
-            setTerminalOutput(prev => [...prev, { type: 'error', text: 'File not found or not a file' }]);
-          }
-        }
-        break;
-
-      case 'echo':
-        setTerminalOutput(prev => [...prev, { type: 'output', text: args.join(' ') }]);
-        break;
-
-      case 'date':
-        setTerminalOutput(prev => [...prev, { type: 'output', text: new Date().toString() }]);
-        break;
-
-      case 'tree':
-        const renderTree = (node, prefix = '', isLast = true) => {
-          const connector = isLast ? '└── ' : '├── ';
-          const icon = node.type === 'folder' ? '📁' : '📄';
-          setTerminalOutput(prev => [...prev, { type: 'output', text: `${prefix}${connector}${icon} ${node.name}` }]);
-          
-          if (node.type === 'folder' && node.children) {
-            const newPrefix = prefix + (isLast ? '    ' : '│   ');
-            node.children.forEach((child, idx) => {
-              renderTree(child, newPrefix, idx === node.children.length - 1);
-            });
-          }
-        };
-        renderTree(fileSystem);
         break;
 
       default:
-        setTerminalOutput(prev => [...prev, { 
-          type: 'error', 
-          text: `Command not found: ${command}. Type 'help' for available commands.` 
-        }]);
+        // Execute real command via backend
+        await executeRealCommand(trimmedCmd);
     }
   };
 
   // Handle terminal input
   const handleTerminalKeyDown = (e) => {
-    if (e.key === 'Enter') {
+    if (e.key === 'Enter' && !isExecuting) {
       executeCommand(terminalInput);
       setTerminalInput('');
     } else if (e.key === 'ArrowUp') {
@@ -257,6 +389,10 @@ const VSCodeFileExplorer = ({ generatedFiles }) => {
         setHistoryIndex(-1);
         setTerminalInput('');
       }
+    } else if (e.key === 'c' && e.ctrlKey) {
+      e.preventDefault();
+      setTerminalOutput(prev => [...prev, { type: 'info', text: '^C' }]);
+      setTerminalInput('');
     }
   };
 
@@ -291,9 +427,49 @@ const VSCodeFileExplorer = ({ generatedFiles }) => {
     };
   }, [isDragging]);
 
+  // Sync AI-generated files to backend workspace
+  const syncAIFilesToBackend = async (node, parentPath = '') => {
+    try {
+      const currentPath = parentPath ? `${parentPath}/${node.name}` : node.name;
+      
+      if (node.type === 'folder') {
+        // Create directory
+        await fetch(`${BACKEND_URL}/api/createDir`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ dirPath: currentPath })
+        });
+        
+        // Recursively sync children
+        if (node.children) {
+          for (const child of node.children) {
+            await syncAIFilesToBackend(child, currentPath);
+          }
+        }
+      } else if (node.type === 'file') {
+        // Write file
+        await fetch(`${BACKEND_URL}/api/writeFile`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ 
+            filePath: currentPath,
+            content: node.content || ''
+          })
+        });
+      }
+    } catch (error) {
+      console.error('Error syncing file:', node.name, error);
+    }
+  };
+
   // Update file system when generatedFiles prop changes
   useEffect(() => {
     if (generatedFiles) {
+      console.log('Loading AI-generated files...');
       setFileSystem(generatedFiles);
       const expandAll = (node, path = '') => {
         const currentPath = path ? `${path}/${node.name}` : node.name;
@@ -306,6 +482,24 @@ const VSCodeFileExplorer = ({ generatedFiles }) => {
         return paths;
       };
       setExpandedFolders(new Set(expandAll(generatedFiles)));
+      
+      setTerminalOutput(prev => [...prev, { 
+        type: 'info', 
+        text: '📦 Syncing AI-generated files to workspace...' 
+      }]);
+      
+      // Sync AI files to backend
+      syncAIFilesToBackend(generatedFiles).then(() => {
+        setTerminalOutput(prev => [...prev, { 
+          type: 'success', 
+          text: '✅ AI project synced to workspace! You can now use terminal commands.' 
+        }]);
+      }).catch(err => {
+        setTerminalOutput(prev => [...prev, { 
+          type: 'error', 
+          text: `❌ Failed to sync: ${err.message}` 
+        }]);
+      });
     }
   }, [generatedFiles]);
 
@@ -614,6 +808,7 @@ const VSCodeFileExplorer = ({ generatedFiles }) => {
                 <div className="flex items-center gap-2">
                   <TerminalIcon size={14} />
                   <span className="text-xs font-semibold">Terminal</span>
+                  <span className="text-xs text-gray-400">{currentDirectory}</span>
                 </div>
                 <button
                   onClick={() => setShowTerminal(false)}
@@ -624,21 +819,25 @@ const VSCodeFileExplorer = ({ generatedFiles }) => {
               </div>
               <div
                 ref={terminalOutputRef}
-                className="flex-1 overflow-y-auto px-3 py-2 font-mono text-sm"
+                className="flex-1 overflow-y-auto px-3 py-2 font-mono text-sm text-left"
               >
                 {terminalOutput.map((line, idx) => (
                   <div
                     key={idx}
-                    className={`${
+                    className={`text-left whitespace-pre-wrap break-words ${
                       line.type === 'error' ? 'text-red-400' :
                       line.type === 'command' ? 'text-green-400' :
                       line.type === 'info' ? 'text-blue-400' :
+                      line.type === 'success' ? 'text-green-300' :
                       'text-gray-300'
                     }`}
                   >
                     {line.text}
                   </div>
                 ))}
+                {isExecuting && (
+                  <div className="text-yellow-400 text-left">Executing...</div>
+                )}
               </div>
               <div className="flex items-center px-3 py-2 bg-gray-800 border-t border-gray-700">
                 <span className="text-green-400 mr-2">$</span>
@@ -650,6 +849,7 @@ const VSCodeFileExplorer = ({ generatedFiles }) => {
                   onKeyDown={handleTerminalKeyDown}
                   className="flex-1 bg-transparent outline-none text-sm font-mono"
                   placeholder="Type a command..."
+                  disabled={isExecuting}
                   autoFocus
                 />
               </div>
