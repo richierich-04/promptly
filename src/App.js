@@ -125,42 +125,12 @@ Rules:
     setError('');
     
     try {
-      // Create comprehensive prompt from ideation
-      const detailedPrompt = `
-PROJECT SPECIFICATION:
-=====================
-
-Project Name: ${ideation.projectName}
-
+      const ideationContext = `
+Project: ${ideation.projectName}
 Description: ${ideation.description}
-
-TARGET AUDIENCE: ${ideation.targetAudience}
-
-UNIQUE SELLING POINT: ${ideation.uniqueSellingPoint}
-
-KEY FEATURES TO IMPLEMENT:
-${ideation.features.map((feature, idx) => `${idx + 1}. ${feature}`).join('\n')}
-
-TECH STACK REQUIREMENTS:
-- Frontend: ${ideation.techStack.frontend.join(', ')}
-- Backend: ${ideation.techStack.backend.join(', ')}
-- Database: ${ideation.techStack.database.join(', ')}
-- Other Tools: ${ideation.techStack.other.join(', ')}
-
-COLOR SCHEME (MUST USE EXACTLY):
-- Primary Color: ${ideation.colorScheme.primary}
-- Secondary Color: ${ideation.colorScheme.secondary}
-- Accent Color: ${ideation.colorScheme.accent}
-- Background Color: ${ideation.colorScheme.background}
-- Text Color: ${ideation.colorScheme.text}
-- Theme: ${ideation.colorScheme.description}
-
-USER FLOW TO IMPLEMENT:
-${ideation.userFlow.map((step, idx) => `${idx + 1}. ${step}`).join('\n')}
-
-ORIGINAL USER REQUEST: "${prompt}"
-
-IMPORTANT: Generate a fully functional, production-ready application that implements ALL the features listed above, uses the EXACT color scheme provided, and follows the user flow precisely.
+Features: ${ideation.features.join(', ')}
+Tech Stack: Frontend - ${ideation.techStack.frontend.join(', ')}, Backend - ${ideation.techStack.backend.join(', ')}
+Color Scheme: Primary ${ideation.colorScheme.primary}, Secondary ${ideation.colorScheme.secondary}, Accent ${ideation.colorScheme.accent}
 `;
 
       const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${GEMINI_API_KEY}`, {
@@ -171,9 +141,11 @@ IMPORTANT: Generate a fully functional, production-ready application that implem
         body: JSON.stringify({
           contents: [{
             parts: [{
-              text: `You are an expert full-stack developer. Based on the detailed project specification below, generate a complete, production-ready project with actual working code.
+              text: `You are a code generation assistant. Based on this project ideation, generate a complete project file structure with actual code content.
 
-${detailedPrompt}
+${ideationContext}
+
+Original User Prompt: "${prompt}"
 
 Return ONLY a valid JSON object (no markdown, no explanation, no code blocks) in this exact format:
 {
@@ -195,21 +167,17 @@ Return ONLY a valid JSON object (no markdown, no explanation, no code blocks) in
 }
 
 Rules:
-1. Implement EVERY feature listed in the specification
-2. Use the EXACT color scheme provided (all hex colors must match)
-3. Follow the user flow step-by-step in your implementation
-4. Use the specified tech stack technologies
-5. Generate realistic, production-quality code with proper error handling
-6. Include all necessary files: components, styles, configuration, README
-7. Add detailed comments explaining key functionality
-8. For React projects, use .jsx extension for component files
-9. Make the UI beautiful, responsive, and user-friendly
-10. Implement the unique selling point prominently
-11. Consider the target audience in your design choices
-12. Escape special characters properly (use \\n for newlines, \\" for quotes)
-13. Return ONLY the JSON object, no markdown formatting, no code blocks
-
-Generate a complete, working application now.`
+1. Generate realistic, working code for each file
+2. Use the EXACT colors from the color scheme provided
+3. Implement the features listed in the ideation
+4. Use the tech stack specified
+5. Include all necessary files (HTML, CSS, JS, JSON, README, etc.)
+6. Add comments in the code
+7. Make the code functional and complete
+8. Return ONLY the JSON object, no markdown formatting
+9. Escape special characters properly (use \\n for newlines, \\" for quotes)
+10. For React projects, use .jsx extension for React component files
+11. Apply the color scheme throughout the UI`
             }]
           }],
           generationConfig: {
