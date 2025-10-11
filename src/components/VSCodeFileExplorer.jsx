@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ChevronRight, ChevronDown, File, Folder, FolderOpen, Plus, X, Save, Terminal as TerminalIcon, Play, RefreshCw, AlertCircle, CheckCircle, Box } from 'lucide-react';
+import { ChevronRight, ChevronDown, File, Folder, FolderOpen, Plus, X, Save, Terminal as TerminalIcon, RefreshCw, AlertCircle } from 'lucide-react';
 import Editor, { loader } from '@monaco-editor/react';
 
 const BACKEND_URL = 'http://localhost:5001';
@@ -22,8 +22,8 @@ const VSCodeFileExplorer = ({ generatedFiles }) => {
 
   const [expandedFolders, setExpandedFolders] = useState(new Set(['project-root', 'src']));
   const [selectedFile, setSelectedFile] = useState(null);
-  const [openTabs, setOpenTabs] = useState(['preview']);
-  const [activeTab, setActiveTab] = useState('preview');
+  const [openTabs, setOpenTabs] = useState([]);
+  const [activeTab, setActiveTab] = useState(null);
   const [fileContents, setFileContents] = useState({});
   const [showNewFileInput, setShowNewFileInput] = useState(null);
   const [newItemName, setNewItemName] = useState('');
@@ -31,7 +31,7 @@ const VSCodeFileExplorer = ({ generatedFiles }) => {
   const [showTerminal, setShowTerminal] = useState(true);
   const [terminalHeight, setTerminalHeight] = useState(250);
   const [terminalOutput, setTerminalOutput] = useState([
-    { type: 'info', text: '🚀 Terminal Connected with StackBlitz Preview!' },
+    { type: 'info', text: '🚀 Terminal Ready!' },
     { type: 'info', text: 'Real-time error detection enabled ✨' },
     { type: 'info', text: 'Type "help" for available commands' }
   ]);
@@ -40,9 +40,6 @@ const VSCodeFileExplorer = ({ generatedFiles }) => {
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [currentDirectory, setCurrentDirectory] = useState('.');
   const [isExecuting, setIsExecuting] = useState(false);
-  const [stackblitzVM, setStackblitzVM] = useState(null);
-  const [isLoadingPreview, setIsLoadingPreview] = useState(false);
-  const [previewReady, setPreviewReady] = useState(false);
   const [fileErrors, setFileErrors] = useState({});
   const [currentErrors, setCurrentErrors] = useState([]);
   
@@ -50,7 +47,6 @@ const VSCodeFileExplorer = ({ generatedFiles }) => {
   const monacoRef = useRef(null);
   const terminalInputRef = useRef(null);
   const terminalOutputRef = useRef(null);
-  const previewContainerRef = useRef(null);
   const [isEditorReady, setIsEditorReady] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const sessionId = useRef(Date.now().toString());
@@ -88,7 +84,7 @@ const VSCodeFileExplorer = ({ generatedFiles }) => {
           text: `❌ Cannot connect to backend at ${BACKEND_URL}` 
         }, {
           type: 'info',
-          text: 'Backend is optional. StackBlitz preview will still work!'
+          text: 'Start the backend server to enable full functionality'
         }]);
       }
     };
@@ -327,7 +323,7 @@ const VSCodeFileExplorer = ({ generatedFiles }) => {
 
   // Handle editor content change with debounced validation
   const handleEditorChange = (value) => {
-    if (activeTab && activeTab !== 'preview') {
+    if (activeTab) {
       setFileContents(prev => ({
         ...prev,
         [activeTab]: value
@@ -343,19 +339,6 @@ const VSCodeFileExplorer = ({ generatedFiles }) => {
         const language = getLanguageFromFileName(fileName);
         validateCode(value, language, activeTab);
       }, 500);
-      
-      // Update in StackBlitz if available
-      if (stackblitzVM && previewReady) {
-        try {
-          stackblitzVM.applyFsDiff({
-            create: {
-              [activeTab]: value
-            }
-          });
-        } catch (error) {
-          console.warn('Could not update StackBlitz:', error);
-        }
-      }
     }
   };
 
@@ -404,236 +387,11 @@ const VSCodeFileExplorer = ({ generatedFiles }) => {
     });
     
     // Initial validation
-    if (activeTab && activeTab !== 'preview') {
+    if (activeTab) {
       const content = fileContents[activeTab] || '';
       const fileName = activeTab.split('/').pop();
       const language = getLanguageFromFileName(fileName);
       setTimeout(() => validateCode(content, language, activeTab), 100);
-    }
-  };
-
-  // Collect all files for StackBlitz
-  const collectAllFiles = (node, path = '', files = {}) => {
-    if (node.type === 'file') {
-      const fullPath = path ? `${path}/${node.name}` : node.name;
-      files[fullPath] = node.content || '';
-    }
-    
-    if (node.type === 'folder' && node.children) {
-      for (const child of node.children) {
-        const currentPath = path ? `${path}/${node.name}` : node.name;
-        collectAllFiles(child, currentPath, files);
-      }
-    }
-    
-    return files;
-  };
-
-  // Detect project type and template
-  const detectProjectType = (files) => {
-    const fileNames = Object.keys(files);
-    const hasReact = fileNames.some(f => f.endsWith('.jsx') || f.endsWith('.tsx')) || 
-                     JSON.stringify(files).includes('react');
-    const hasVue = fileNames.some(f => f.endsWith('.vue'));
-    const hasAngular = fileNames.some(f => f.includes('angular'));
-    const hasTypeScript = fileNames.some(f => f.endsWith('.ts') || f.endsWith('.tsx'));
-
-    if (hasAngular) return 'angular-cli';
-    if (hasVue) return 'vue';
-    if (hasReact && hasTypeScript) return 'create-react-app';
-    if (hasReact) return 'create-react-app';
-    if (hasTypeScript) return 'typescript';
-    
-    return 'javascript';
-  };
-
-  // Ensure package.json exists
-  const ensurePackageJson = (files, template) => {
-    let packageJson = {};
-    
-    if (files['package.json']) {
-      try {
-        packageJson = JSON.parse(files['package.json']);
-      } catch (e) {
-        console.warn('Invalid package.json, creating new one');
-      }
-    }
-
-    const defaults = {
-      name: 'stackblitz-project',
-      version: '1.0.0',
-      description: 'Generated project',
-      main: 'index.js',
-      scripts: packageJson.scripts || {},
-      dependencies: packageJson.dependencies || {},
-      devDependencies: packageJson.devDependencies || {}
-    };
-
-    if (template.includes('react')) {
-      defaults.dependencies.react = '^18.2.0';
-      defaults.dependencies['react-dom'] = '^18.2.0';
-      
-      if (template.includes('vite') || Object.keys(files).some(f => f.includes('vite'))) {
-        defaults.scripts.dev = 'vite';
-        defaults.scripts.build = 'vite build';
-        defaults.scripts.preview = 'vite preview';
-        defaults.devDependencies.vite = '^5.0.0';
-        defaults.devDependencies['@vitejs/plugin-react'] = '^4.2.0';
-      } else {
-        defaults.scripts.start = 'react-scripts start';
-        defaults.scripts.build = 'react-scripts build';
-      }
-    }
-
-    if (template === 'vue') {
-      defaults.dependencies.vue = '^3.3.0';
-      defaults.scripts.dev = 'vite';
-      defaults.devDependencies.vite = '^5.0.0';
-      defaults.devDependencies['@vitejs/plugin-vue'] = '^5.0.0';
-    }
-
-    files['package.json'] = JSON.stringify(defaults, null, 2);
-    return files;
-  };
-
-  // Ensure index.html exists
-  const ensureIndexHtml = (files, template) => {
-    if (files['index.html'] || files['public/index.html']) {
-      return files;
-    }
-
-    let html = '';
-    
-    if (template.includes('react')) {
-      html = `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>React App</title>
-</head>
-<body>
-  <div id="root"></div>
-  <script type="module" src="/src/main.jsx"></script>
-</body>
-</html>`;
-    } else {
-      html = `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>App</title>
-</head>
-<body>
-  <div id="app"></div>
-  <script type="module" src="/src/main.js"></script>
-</body>
-</html>`;
-    }
-
-    files['index.html'] = html;
-    return files;
-  };
-
-  // Open project in StackBlitz
-  const openInStackBlitz = async () => {
-    setIsLoadingPreview(true);
-    setTerminalOutput(prev => [...prev, { 
-      type: 'info', 
-      text: '🚀 Opening preview in StackBlitz...' 
-    }]);
-
-    try {
-      if (!window.StackBlitzSDK) {
-        const script = document.createElement('script');
-        script.src = 'https://unpkg.com/@stackblitz/sdk@1/bundles/sdk.umd.js';
-        script.async = true;
-        
-        await new Promise((resolve, reject) => {
-          script.onload = resolve;
-          script.onerror = reject;
-          document.head.appendChild(script);
-        });
-        
-        setTerminalOutput(prev => [...prev, { 
-          type: 'success', 
-          text: '✅ StackBlitz SDK loaded' 
-        }]);
-      }
-
-      const sdk = window.StackBlitzSDK;
-
-      let files = collectAllFiles(fileSystem);
-      const template = detectProjectType(files);
-      setTerminalOutput(prev => [...prev, { 
-        type: 'info', 
-        text: `📦 Detected project type: ${template}` 
-      }]);
-
-      files = ensurePackageJson(files, template);
-      files = ensureIndexHtml(files, template);
-
-      setTerminalOutput(prev => [...prev, { 
-        type: 'info', 
-        text: `📄 Prepared ${Object.keys(files).length} files` 
-      }]);
-
-      const project = {
-        title: 'AI Generated Project',
-        description: 'Generated with AI',
-        template: template,
-        files: files,
-        settings: {
-          compile: {
-            trigger: 'auto',
-            clearConsole: false
-          }
-        }
-      };
-
-      if (previewContainerRef.current) {
-        previewContainerRef.current.innerHTML = '';
-      }
-
-      setTerminalOutput(prev => [...prev, { 
-        type: 'info', 
-        text: '⚡ Embedding StackBlitz...' 
-      }]);
-
-      const vm = await sdk.embedProject(
-        previewContainerRef.current,
-        project,
-        {
-          openFile: Object.keys(files)[0],
-          view: 'preview',
-          height: '100%',
-          hideNavigation: false,
-          hideDevTools: false,
-          forceEmbedLayout: true,
-          clickToLoad: false,
-        }
-      );
-
-      setStackblitzVM(vm);
-      setPreviewReady(true);
-      setIsLoadingPreview(false);
-
-      setTerminalOutput(prev => [...prev, { 
-        type: 'success', 
-        text: '✅ StackBlitz preview loaded successfully!' 
-      }, {
-        type: 'info',
-        text: '💡 Your app is now running with live reload'
-      }]);
-
-    } catch (error) {
-      console.error('StackBlitz error:', error);
-      setIsLoadingPreview(false);
-      setTerminalOutput(prev => [...prev, { 
-        type: 'error', 
-        text: `❌ StackBlitz failed: ${error.message}` 
-      }]);
     }
   };
 
@@ -781,8 +539,10 @@ const VSCodeFileExplorer = ({ generatedFiles }) => {
           { type: 'output', text: '  help       - Show this help' },
           { type: 'output', text: '  clear      - Clear terminal' },
           { type: 'output', text: '  refresh    - Refresh file explorer' },
-          { type: 'output', text: '  preview    - Open StackBlitz preview' },
           { type: 'output', text: '  errors     - Show all syntax errors' },
+          { type: 'output', text: '  cd         - Change directory' },
+          { type: 'output', text: '  ls         - List files' },
+          { type: 'output', text: '  pwd        - Print working directory' },
         ]);
         break;
 
@@ -813,10 +573,6 @@ const VSCodeFileExplorer = ({ generatedFiles }) => {
             }
           });
         }
-        break;
-
-      case 'preview':
-        await openInStackBlitz();
         break;
 
       case 'refresh':
@@ -964,24 +720,17 @@ const VSCodeFileExplorer = ({ generatedFiles }) => {
       };
       setExpandedFolders(new Set(expandAll(generatedFiles)));
       
-      setActiveTab('preview');
-      setOpenTabs(['preview']);
-      
       setTerminalOutput(prev => [...prev, { 
         type: 'info', 
         text: '📦 AI-generated files loaded!' 
       }, {
         type: 'success',
-        text: '✅ Opening preview automatically...'
+        text: '✅ Ready to edit your files'
       }]);
       
       syncAIFilesToBackend(generatedFiles).catch(err => {
         console.warn('Backend sync failed:', err);
       });
-
-      setTimeout(() => {
-        openInStackBlitz();
-      }, 1000);
     }
   }, [generatedFiles]);
 
@@ -1150,8 +899,8 @@ const VSCodeFileExplorer = ({ generatedFiles }) => {
     );
   };
 
-  const currentFileName = activeTab && activeTab !== 'preview' ? activeTab.split('/').pop() : '';
-  const currentLanguage = activeTab && activeTab !== 'preview' ? getLanguageFromFileName(currentFileName) : 'plaintext';
+  const currentFileName = activeTab ? activeTab.split('/').pop() : '';
+  const currentLanguage = activeTab ? getLanguageFromFileName(currentFileName) : 'plaintext';
 
   return (
     <div className="flex h-screen bg-gray-900 text-white">
@@ -1178,121 +927,39 @@ const VSCodeFileExplorer = ({ generatedFiles }) => {
       <div className="flex-1 flex flex-col">
         {/* Tabs */}
         <div className="flex bg-gray-800 border-b border-gray-700 overflow-x-auto">
-          {/* Preview Tab */}
-          <div
-            className={`flex items-center gap-2 px-4 py-2 border-r border-gray-700 cursor-pointer ${
-              activeTab === 'preview' ? 'bg-gray-900' : 'hover:bg-gray-700'
-            }`}
-            onClick={() => setActiveTab('preview')}
-          >
-            <Box size={14} className="text-orange-400" />
-            <span className="text-sm">StackBlitz Preview</span>
-            {previewReady && (
-              <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse" title="Live"></span>
-            )}
-          </div>
-
-          {/* File Tabs */}
-          {openTabs.filter(tab => tab !== 'preview').map(tab => {
-            const tabErrors = fileErrors[tab] || [];
-            const hasTabErrors = tabErrors.length > 0;
-            
-            return (
-              <div
-                key={tab}
-                className={`flex items-center gap-2 px-4 py-2 border-r border-gray-700 cursor-pointer ${
-                  activeTab === tab ? 'bg-gray-900' : 'hover:bg-gray-700'
-                }`}
-                onClick={() => setActiveTab(tab)}
-              >
-                <File size={14} className={hasTabErrors ? "text-red-400" : ""} />
-                <span className="text-sm">{tab.split('/').pop()}</span>
-                {hasTabErrors && <AlertCircle size={12} className="text-red-400" />}
-                <button
-                  onClick={(e) => closeTab(tab, e)}
-                  className="hover:bg-gray-600 rounded p-0.5"
+          {openTabs.length === 0 ? (
+            <div className="px-4 py-2 text-sm text-gray-500">No files open</div>
+          ) : (
+            openTabs.map(tab => {
+              const tabErrors = fileErrors[tab] || [];
+              const hasTabErrors = tabErrors.length > 0;
+              
+              return (
+                <div
+                  key={tab}
+                  className={`flex items-center gap-2 px-4 py-2 border-r border-gray-700 cursor-pointer ${
+                    activeTab === tab ? 'bg-gray-900' : 'hover:bg-gray-700'
+                  }`}
+                  onClick={() => setActiveTab(tab)}
                 >
-                  <X size={12} />
-                </button>
-              </div>
-            );
-          })}
+                  <File size={14} className={hasTabErrors ? "text-red-400" : ""} />
+                  <span className="text-sm">{tab.split('/').pop()}</span>
+                  {hasTabErrors && <AlertCircle size={12} className="text-red-400" />}
+                  <button
+                    onClick={(e) => closeTab(tab, e)}
+                    className="hover:bg-gray-600 rounded p-0.5"
+                  >
+                    <X size={12} />
+                  </button>
+                </div>
+              );
+            })
+          )}
         </div>
 
         {/* Content Area */}
         <div className="flex-1 overflow-hidden" style={{ height: showTerminal ? `calc(100% - ${terminalHeight}px)` : '100%' }}>
-          {activeTab === 'preview' ? (
-            // StackBlitz Preview Panel
-            <div className="h-full flex flex-col bg-gray-800">
-              {/* Preview Controls */}
-              <div className="flex items-center justify-between px-4 py-2 bg-gray-800 border-b border-gray-700">
-                <div className="flex items-center gap-2">
-                  <Box size={16} className="text-orange-400" />
-                  <span className="text-sm font-semibold">
-                    {previewReady ? '🟢 StackBlitz WebContainer Running' : '⚪ Preview'}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  {!previewReady && !isLoadingPreview && (
-                    <button
-                      onClick={openInStackBlitz}
-                      className="bg-orange-600 hover:bg-orange-700 px-3 py-1.5 rounded flex items-center gap-2 text-sm"
-                    >
-                      <Play size={14} />
-                      Open Preview
-                    </button>
-                  )}
-                  {isLoadingPreview && (
-                    <div className="flex items-center gap-2 text-sm text-blue-400">
-                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-400 border-t-transparent"></div>
-                      Loading...
-                    </div>
-                  )}
-                  {previewReady && (
-                    <button
-                      onClick={openInStackBlitz}
-                      className="hover:bg-gray-700 p-1.5 rounded flex items-center gap-1"
-                      title="Reload Preview"
-                    >
-                      <RefreshCw size={14} />
-                      <span className="text-xs">Reload</span>
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {/* Preview Content */}
-              <div className="flex-1 overflow-hidden relative">
-                {!previewReady && !isLoadingPreview ? (
-                  <div className="flex flex-col items-center justify-center h-full bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900">
-                    <Box size={64} className="text-orange-400 mb-6 animate-bounce" />
-                    <h2 className="text-2xl font-bold mb-4">StackBlitz WebContainer Preview</h2>
-                    <p className="text-gray-400 mb-6 text-center max-w-md">
-                      Click "Open Preview" to see your project running in a full Node.js environment
-                    </p>
-                    <button
-                      onClick={openInStackBlitz}
-                      className="bg-orange-600 hover:bg-orange-700 px-6 py-3 rounded-lg flex items-center gap-2 font-semibold transition-all hover:scale-105"
-                    >
-                      <Play size={20} />
-                      Open Preview
-                    </button>
-                    <div className="mt-8 text-sm text-gray-500">
-                      <p>✨ Real-time error detection enabled</p>
-                      <p>⚡ Supports: React, Vue, Angular, Node.js, and more</p>
-                      <p>🔧 Full npm package support</p>
-                    </div>
-                  </div>
-                ) : (
-                  <div 
-                    ref={previewContainerRef} 
-                    className="w-full h-full"
-                    style={{ minHeight: '100%' }}
-                  />
-                )}
-              </div>
-            </div>
-          ) : activeTab ? (
+          {activeTab ? (
             // Monaco Editor
             <div className="h-full flex flex-col">
               {currentErrors.length > 0 && (
@@ -1355,12 +1022,21 @@ const VSCodeFileExplorer = ({ generatedFiles }) => {
                     </span>
                   )}
                 </div>
-                <button
-                  onClick={() => setShowTerminal(false)}
-                  className="hover:bg-gray-700 p-1 rounded"
-                >
-                  <X size={14} />
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={refreshFileSystem}
+                    className="hover:bg-gray-700 p-1 rounded flex items-center gap-1"
+                    title="Refresh Files"
+                  >
+                    <RefreshCw size={14} />
+                  </button>
+                  <button
+                    onClick={() => setShowTerminal(false)}
+                    className="hover:bg-gray-700 p-1 rounded"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
               </div>
               <div
                 ref={terminalOutputRef}
