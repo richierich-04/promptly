@@ -83,10 +83,11 @@ Rules:
             }]
           }],
           generationConfig: {
-            temperature: 0.8,
+            temperature: 0.7,
             topK: 40,
             topP: 0.95,
             maxOutputTokens: 2048,
+            response_mime_type: "application/json"
           }
         })
       });
@@ -107,14 +108,31 @@ Rules:
       let ideationData;
       try {
         let cleanContent = content.trim();
+        
+        // Remove markdown code blocks
         cleanContent = cleanContent.replace(/```json\n?/g, '').replace(/```\n?/g, '');
+        
+        // Try to extract JSON object from the response
+        const jsonMatch = cleanContent.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          cleanContent = jsonMatch[0];
+        }
+        
+        // Remove any leading/trailing text
         cleanContent = cleanContent.replace(/^[^{]*({[\s\S]*})[^}]*$/, '$1');
         
+        // Parse the JSON
         ideationData = JSON.parse(cleanContent);
+        
+        // Validate required fields
+        if (!ideationData.projectName || !ideationData.features || !ideationData.techStack) {
+          throw new Error('Invalid ideation structure');
+        }
+        
       } catch (parseError) {
         console.error('Parse error:', parseError);
         console.log('Raw content:', content);
-        throw new Error('Failed to parse AI response. Please try again.');
+        throw new Error('Failed to parse AI response. The API returned an invalid format. Please try again.');
       }
 
       setLoading(false);
@@ -195,6 +213,7 @@ Rules:
             topK: 40,
             topP: 0.95,
             maxOutputTokens: 8192,
+            response_mime_type: "application/json"
           }
         })
       });
@@ -215,14 +234,31 @@ Rules:
       let fileStructure;
       try {
         let cleanContent = content.trim();
+        
+        // Remove markdown code blocks
         cleanContent = cleanContent.replace(/```json\n?/g, '').replace(/```\n?/g, '');
+        
+        // Try to extract JSON object from the response
+        const jsonMatch = cleanContent.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          cleanContent = jsonMatch[0];
+        }
+        
+        // Remove any leading/trailing text
         cleanContent = cleanContent.replace(/^[^{]*({[\s\S]*})[^}]*$/, '$1');
         
+        // Parse the JSON
         fileStructure = JSON.parse(cleanContent);
+        
+        // Validate structure
+        if (!fileStructure.name || !fileStructure.type || !fileStructure.children) {
+          throw new Error('Invalid file structure');
+        }
+        
       } catch (parseError) {
         console.error('Parse error:', parseError);
         console.log('Raw content:', content);
-        throw new Error('Failed to parse AI response. Please try again.');
+        throw new Error('Failed to parse AI response. The API returned an invalid file structure. Please try again.');
       }
 
       setLoading(false);
