@@ -6,7 +6,7 @@ import VSCodeFileExplorer from './components/VSCodeFileExplorer';
 const GEMINI_API_KEY = process.env.REACT_APP_GEMINI_API_KEY || 'your-gemini-api-key-here';
 
 function App() {
-  const [currentView, setCurrentView] = useState('prompt'); // 'login', 'prompt', 'ideation', 'editor'
+  const [currentView, setCurrentView] = useState('login'); // 'login', 'prompt', 'ideation', 'loading', 'editor', 'transition-to-dashboard', 'transition-to-ideation'
   const [prompt, setPrompt] = useState('');
   const [ideation, setIdeation] = useState(null);
   const [generatedFiles, setGeneratedFiles] = useState(null);
@@ -247,6 +247,9 @@ Rules:
       return;
     }
 
+    // Show transition screen
+    setCurrentView('transition-to-ideation');
+    
     const ideationData = await generateIdeation(prompt);
     if (ideationData) {
       setIdeation(ideationData);
@@ -262,14 +265,20 @@ Rules:
           }, idx * 150);
         });
       }, 300);
+    } else {
+      // If error, go back to prompt
+      setCurrentView('prompt');
     }
   };
 
   const handlePrototype = async () => {
+    setCurrentView('loading');
     const files = await generateFilesFromIdeation();
     if (files) {
       setGeneratedFiles(files);
       setCurrentView('editor');
+    } else {
+      setCurrentView('ideation');
     }
   };
 
@@ -284,6 +293,9 @@ Rules:
       setCurrentView('ideation');
       setGeneratedFiles(null);
       setError('');
+    } else if (currentView === 'loading') {
+      setCurrentView('ideation');
+      setError('');
     }
   };
 
@@ -295,12 +307,18 @@ Rules:
     setError('');
     setShowIdeation(false);
     setAnimateFeatures([]);
+    setLoading(false);
   };
 
   const handleLogin = (e) => {
     e.preventDefault();
-    // Mock login - just navigate to main page
-    setCurrentView('prompt');
+    // Show transition screen
+    setCurrentView('transition-to-dashboard');
+    
+    // After 2 seconds, navigate to prompt page
+    setTimeout(() => {
+      setCurrentView('prompt');
+    }, 2000);
   };
 
   // Login/Signup View
@@ -319,7 +337,7 @@ Rules:
           {/* Logo/Title */}
           <div className="text-center mb-8">
             <h1 className="text-5xl font-bold mb-3 bg-gradient-to-r from-cyan-300 via-purple-400 to-pink-400 bg-clip-text text-transparent">
-              AI Prototype Studio
+              Promptly.
             </h1>
             <p className="text-gray-400 text-sm">
               Transform your ideas into reality with AI
@@ -456,6 +474,46 @@ Rules:
           <p className="text-center text-xs text-gray-600 mt-6">
             Powered by Google Gemini 2.0 Flash
           </p>
+        </div>
+      </div>
+    );
+  }
+
+  // Transition to Dashboard
+  if (currentView === 'transition-to-dashboard') {
+    return (
+      <div className="h-screen bg-gray-950 relative overflow-hidden flex items-center justify-center">
+        {/* Animated background - Same theme */}
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_30%,rgba(139,92,246,0.15),transparent_50%)]"></div>
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_70%,rgba(236,72,153,0.15),transparent_50%)]"></div>
+        
+        {/* Floating orbs */}
+        <div className="absolute bottom-12 right-12 w-32 h-32 bg-purple-600/30 rounded-full blur-3xl animate-pulse"></div>
+        <div className="absolute top-20 left-20 w-24 h-24 bg-cyan-600/20 rounded-full blur-3xl animate-pulse" style={{animationDelay: '1s'}}></div>
+
+        <div className="relative z-10 text-center">
+          {/* Spinning loader */}
+          <div className="mb-8 flex justify-center">
+            <div className="relative">
+              <div className="w-20 h-20 border-4 border-cyan-500/30 border-t-cyan-500 rounded-full animate-spin"></div>
+              <div className="absolute inset-0 w-20 h-20 border-4 border-purple-500/30 border-t-purple-500 rounded-full animate-spin" style={{animationDirection: 'reverse', animationDuration: '1.5s'}}></div>
+            </div>
+          </div>
+
+          {/* Loading text */}
+          <h2 className="text-2xl font-bold mb-3 bg-gradient-to-r from-cyan-300 via-purple-400 to-pink-400 bg-clip-text text-transparent">
+            Taking you to your workspace
+          </h2>
+          <p className="text-gray-400 text-base">
+            Getting everything ready...
+          </p>
+
+          {/* Progress dots animation */}
+          <div className="flex items-center justify-center gap-2 mt-6">
+            <div className="w-2.5 h-2.5 bg-cyan-500 rounded-full animate-bounce"></div>
+            <div className="w-2.5 h-2.5 bg-purple-500 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
+            <div className="w-2.5 h-2.5 bg-pink-500 rounded-full animate-bounce" style={{animationDelay: '0.4s'}}></div>
+          </div>
         </div>
       </div>
     );
@@ -635,6 +693,49 @@ Rules:
         {/* Floating orbs */}
         <div className="absolute bottom-12 right-12 w-32 h-32 bg-purple-600/30 rounded-full blur-3xl animate-pulse"></div>
         <div className="absolute top-20 left-20 w-24 h-24 bg-cyan-600/20 rounded-full blur-3xl animate-pulse" style={{animationDelay: '1s'}}></div>
+      </div>
+    );
+  }
+
+  // Transition to Ideation
+  if (currentView === 'transition-to-ideation') {
+    return (
+      <div className="h-screen bg-gray-950 relative overflow-hidden flex items-center justify-center">
+        {/* Animated background - Same theme */}
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_30%,rgba(139,92,246,0.15),transparent_50%)]"></div>
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_70%,rgba(236,72,153,0.15),transparent_50%)]"></div>
+        
+        {/* Floating orbs */}
+        <div className="absolute bottom-12 right-12 w-32 h-32 bg-purple-600/30 rounded-full blur-3xl animate-pulse"></div>
+        <div className="absolute top-20 left-20 w-24 h-24 bg-cyan-600/20 rounded-full blur-3xl animate-pulse" style={{animationDelay: '1s'}}></div>
+
+        <div className="relative z-10 text-center">
+          {/* Spinning loader */}
+          <div className="mb-8 flex justify-center">
+            <div className="relative">
+              <div className="w-20 h-20 border-4 border-purple-500/30 border-t-purple-500 rounded-full animate-spin"></div>
+              <div className="absolute inset-0 w-20 h-20 border-4 border-pink-500/30 border-t-pink-500 rounded-full animate-spin" style={{animationDirection: 'reverse', animationDuration: '1.5s'}}></div>
+            </div>
+          </div>
+
+          {/* Loading text */}
+          <h2 className="text-2xl font-bold mb-3 bg-gradient-to-r from-purple-300 via-pink-400 to-purple-400 bg-clip-text text-transparent">
+            Ideating Your Prompt
+          </h2>
+          <p className="text-gray-400 text-base mb-2">
+            AI is analyzing your idea and creating a blueprint...
+          </p>
+          <p className="text-gray-500 text-sm">
+            This may take a moment
+          </p>
+
+          {/* Progress dots animation */}
+          <div className="flex items-center justify-center gap-2 mt-6">
+            <div className="w-2.5 h-2.5 bg-purple-500 rounded-full animate-bounce"></div>
+            <div className="w-2.5 h-2.5 bg-pink-500 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
+            <div className="w-2.5 h-2.5 bg-purple-500 rounded-full animate-bounce" style={{animationDelay: '0.4s'}}></div>
+          </div>
+        </div>
       </div>
     );
   }
@@ -839,6 +940,49 @@ Rules:
                 'Prototype this App'
               )}
             </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Loading View
+  if (currentView === 'loading') {
+    return (
+      <div className="h-screen bg-gray-950 relative overflow-hidden flex items-center justify-center">
+        {/* Animated background - Same theme */}
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_30%,rgba(139,92,246,0.15),transparent_50%)]"></div>
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_70%,rgba(236,72,153,0.15),transparent_50%)]"></div>
+        
+        {/* Floating orbs */}
+        <div className="absolute bottom-12 right-12 w-32 h-32 bg-purple-600/30 rounded-full blur-3xl animate-pulse"></div>
+        <div className="absolute top-20 left-20 w-24 h-24 bg-cyan-600/20 rounded-full blur-3xl animate-pulse" style={{animationDelay: '1s'}}></div>
+
+        <div className="relative z-10 text-center">
+          {/* Large spinning loader */}
+          <div className="mb-8 flex justify-center">
+            <div className="relative">
+              <div className="w-24 h-24 border-4 border-purple-500/30 border-t-purple-500 rounded-full animate-spin"></div>
+              <div className="absolute inset-0 w-24 h-24 border-4 border-pink-500/30 border-t-pink-500 rounded-full animate-spin" style={{animationDirection: 'reverse', animationDuration: '1.5s'}}></div>
+            </div>
+          </div>
+
+          {/* Loading text */}
+          <h2 className="text-3xl font-bold mb-4 bg-gradient-to-r from-cyan-300 via-purple-400 to-pink-400 bg-clip-text text-transparent">
+            Building Your Project
+          </h2>
+          <p className="text-gray-400 text-lg mb-2">
+            Generating files and setting up your workspace...
+          </p>
+          <p className="text-gray-500 text-sm">
+            This may take a few moments
+          </p>
+
+          {/* Progress dots animation */}
+          <div className="flex items-center justify-center gap-2 mt-8">
+            <div className="w-3 h-3 bg-purple-500 rounded-full animate-bounce"></div>
+            <div className="w-3 h-3 bg-pink-500 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
+            <div className="w-3 h-3 bg-cyan-500 rounded-full animate-bounce" style={{animationDelay: '0.4s'}}></div>
           </div>
         </div>
       </div>
