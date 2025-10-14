@@ -1,12 +1,18 @@
 import React, { useState } from 'react';
 import { Star, Palette, Layout, Type, Users, Play, Sparkles, ChevronDown, Edit, Lightbulb, Code, ArrowRight, Box } from 'lucide-react';
 import VSCodeFileExplorer from './components/VSCodeFileExplorer';
+import Login from './components/Login';
+import SignUp from './components/SignUp';
+import UserProfile from './components/UserProfile';
+import ErrorDisplay from './components/ErrorDisplay';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
 
 //ADD YOUR GEMINI API KEY HERE
 const GEMINI_API_KEY = process.env.REACT_APP_GEMINI_API_KEY || 'your-gemini-api-key-here';
 
-function App() {
-  const [currentView, setCurrentView] = useState('login'); // 'login', 'prompt', 'ideation', 'loading', 'editor', 'transition-to-dashboard', 'transition-to-ideation'
+// Main App Component with Firebase Authentication
+function AppContent() {
+  const [currentView, setCurrentView] = useState('prompt'); // 'prompt', 'ideation', 'loading', 'editor', 'transition-to-dashboard', 'transition-to-ideation'
   const [prompt, setPrompt] = useState('');
   const [ideation, setIdeation] = useState(null);
   const [generatedFiles, setGeneratedFiles] = useState(null);
@@ -15,6 +21,10 @@ function App() {
   const [showIdeation, setShowIdeation] = useState(false);
   const [animateFeatures, setAnimateFeatures] = useState([]);
   const [isSignUp, setIsSignUp] = useState(false);
+  const [showUserProfile, setShowUserProfile] = useState(false);
+
+  // Get authentication state and user info
+  const { currentUser, isAuthenticated, error: authError, setError: setAuthError } = useAuth();
 
   // Generate ideation from AI
   const generateIdeation = async (userPrompt) => {
@@ -346,175 +356,43 @@ Rules:
     setLoading(false);
   };
 
-  const handleLogin = (e) => {
-    e.preventDefault();
-    // Show transition screen
-    setCurrentView('transition-to-dashboard');
-    
-    // After 2 seconds, navigate to prompt page
-    setTimeout(() => {
-      setCurrentView('prompt');
-    }, 2000);
+  const handleLoginSuccess = (user) => {
+    console.log('Login successful:', user);
+    setCurrentView('prompt');
   };
 
-  // Login/Signup View
-  if (currentView === 'login') {
+  const handleLogout = () => {
+    setCurrentView('prompt');
+    setShowUserProfile(false);
+    // Reset app state
+    setPrompt('');
+    setIdeation(null);
+    setGeneratedFiles(null);
+    setError('');
+    setShowIdeation(false);
+    setAnimateFeatures([]);
+    setLoading(false);
+  };
+
+  // Show authentication screen if user is not logged in
+  if (!isAuthenticated) {
     return (
-      <div className="h-screen bg-gray-950 relative overflow-hidden flex items-center justify-center">
-        {/* Animated background */}
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_30%,rgba(139,92,246,0.15),transparent_50%)]"></div>
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_70%,rgba(236,72,153,0.15),transparent_50%)]"></div>
-        
-        {/* Floating orbs */}
-        <div className="absolute bottom-12 right-12 w-32 h-32 bg-purple-600/30 rounded-full blur-3xl animate-pulse"></div>
-        <div className="absolute top-20 left-20 w-24 h-24 bg-cyan-600/20 rounded-full blur-3xl animate-pulse" style={{animationDelay: '1s'}}></div>
-
-        <div className="relative z-10 w-full max-w-md px-6">
-          {/* Logo/Title */}
-          <div className="text-center mb-8">
-            <h1 className="text-5xl font-bold mb-3 bg-gradient-to-r from-cyan-300 via-purple-400 to-pink-400 bg-clip-text text-transparent">
-              Promptly.
-            </h1>
-            <p className="text-gray-400 text-sm">
-              Transform your ideas into reality with AI
-            </p>
-          </div>
-
-          {/* Login/Signup Form */}
-          <div className="bg-gray-900/80 rounded-xl p-8 border-2 border-gray-700/40 hover:border-gray-600/60 transition-all shadow-lg backdrop-blur-sm">
-            <div className="flex gap-4 mb-6">
-              <button
-                onClick={() => setIsSignUp(false)}
-                className={`flex-1 py-2 px-4 rounded-lg font-semibold transition-all ${
-                  !isSignUp
-                    ? 'bg-gradient-to-r from-cyan-500 to-purple-500 text-white'
-                    : 'bg-transparent text-gray-400 hover:text-white border-2 border-gray-700'
-                }`}
-              >
-                Sign In
-              </button>
-              <button
-                onClick={() => setIsSignUp(true)}
-                className={`flex-1 py-2 px-4 rounded-lg font-semibold transition-all ${
-                  isSignUp
-                    ? 'bg-gradient-to-r from-cyan-500 to-purple-500 text-white'
-                    : 'bg-transparent text-gray-400 hover:text-white border-2 border-gray-700'
-                }`}
-              >
-                Sign Up
-              </button>
-            </div>
-
-            <form onSubmit={handleLogin} className="space-y-4">
-              {isSignUp && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">
-                    Full Name
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Richita Sharma"
-                    className="w-full px-4 py-3 bg-gray-800/50 border-2 border-gray-700/50 rounded-lg focus:border-purple-500 focus:outline-none text-white placeholder-gray-500 transition-all"
-                  />
-                </div>
-              )}
-
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Email Address
-                </label>
-                <input
-                  type="email"
-                  placeholder="you@example.com"
-                  className="w-full px-4 py-3 bg-gray-800/50 border-2 border-gray-700/50 rounded-lg focus:border-purple-500 focus:outline-none text-white placeholder-gray-500 transition-all"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Password
-                </label>
-                <input
-                  type="password"
-                  placeholder="••••••••"
-                  className="w-full px-4 py-3 bg-gray-800/50 border-2 border-gray-700/50 rounded-lg focus:border-purple-500 focus:outline-none text-white placeholder-gray-500 transition-all"
-                />
-              </div>
-
-              {!isSignUp && (
-                <div className="flex items-center justify-between text-sm">
-                  <label className="flex items-center text-gray-400">
-                    <input type="checkbox" className="mr-2 rounded" />
-                    Remember me
-                  </label>
-                  <a href="#" className="text-purple-400 hover:text-purple-300 transition-colors">
-                    Forgot password?
-                  </a>
-                </div>
-              )}
-
-              {isSignUp && (
-                <div className="flex items-start text-sm">
-                  <input type="checkbox" className="mr-2 mt-1 rounded" />
-                  <label className="text-gray-400">
-                    I agree to the{' '}
-                    <a href="#" className="text-purple-400 hover:text-purple-300">
-                      Terms of Service
-                    </a>{' '}
-                    and{' '}
-                    <a href="#" className="text-purple-400 hover:text-purple-300">
-                      Privacy Policy
-                    </a>
-                  </label>
-                </div>
-              )}
-
-              <button
-                type="submit"
-                className="w-full bg-gradient-to-r from-cyan-500 to-purple-500 hover:from-cyan-400 hover:to-purple-400 text-white py-3 px-4 rounded-lg font-semibold transition-all shadow-lg hover:shadow-purple-500/50 border-2 border-cyan-400/30"
-              >
-                {isSignUp ? 'Create Account' : 'Sign In'}
-              </button>
-            </form>
-
-            <div className="mt-6 text-center">
-              <div className="relative">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-gray-700"></div>
-                </div>
-                <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-gray-900 px-2 text-gray-500">Or continue with</span>
-                </div>
-              </div>
-
-              <div className="mt-4 grid grid-cols-2 gap-3">
-                <button className="flex items-center justify-center gap-2 px-4 py-2 bg-gray-800/50 hover:bg-gray-800 border-2 border-gray-700 rounded-lg text-gray-300 hover:text-white transition-all">
-                  <svg className="w-5 h-5" viewBox="0 0 24 24">
-                    <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                    <path fill="currentColor" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                    <path fill="currentColor" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-                    <path fill="currentColor" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-                  </svg>
-                  Google
-                </button>
-                <button className="flex items-center justify-center gap-2 px-4 py-2 bg-gray-800/50 hover:bg-gray-800 border-2 border-gray-700 rounded-lg text-gray-300 hover:text-white transition-all">
-                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
-                  </svg>
-                  GitHub
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <p className="text-center text-xs text-gray-600 mt-6">
-            Powered by Google Gemini 2.0 Flash
-          </p>
-        </div>
+      <div>
+        <ErrorDisplay error={authError} onClose={() => setAuthError(null)} />
+        {isSignUp ? (
+          <SignUp 
+            onSwitchToLogin={() => setIsSignUp(false)}
+            onSignUpSuccess={handleLoginSuccess}
+          />
+        ) : (
+          <Login 
+            onSwitchToSignUp={() => setIsSignUp(true)}
+            onLoginSuccess={handleLoginSuccess}
+          />
+        )}
       </div>
     );
   }
-
   // Transition to Dashboard
   if (currentView === 'transition-to-dashboard') {
     return (
@@ -564,19 +442,42 @@ Rules:
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_70%,rgba(236,72,153,0.15),transparent_50%)]"></div>
         
         <div className="max-w-[1600px] mx-auto w-full relative z-10 flex flex-col justify-center h-full">
+          {/* Top Navigation Bar */}
+          <div className="absolute top-0 right-0 p-4">
+            <div className="flex items-center gap-4">
+              <span className="text-gray-300 text-sm">
+                Welcome back, {currentUser?.displayName || currentUser?.email?.split('@')[0] || 'User'}
+              </span>
+              <button
+                onClick={() => setShowUserProfile(!showUserProfile)}
+                className="w-10 h-10 bg-gradient-to-br from-purple-500 to-blue-500 rounded-full flex items-center justify-center text-white font-bold text-sm hover:from-purple-600 hover:to-blue-600 transition-all"
+              >
+                {currentUser?.displayName 
+                  ? currentUser.displayName.charAt(0).toUpperCase()
+                  : currentUser?.email?.charAt(0).toUpperCase() || 'U'
+                }
+              </button>
+              {showUserProfile && (
+                <div className="absolute top-16 right-0 w-80">
+                  <UserProfile onLogout={handleLogout} />
+                </div>
+              )}
+            </div>
+          </div>
+
           {/* Header */}
           <div className="text-center mb-8">
             <h1 className="text-5xl font-bold mb-2 bg-gradient-to-r from-cyan-300 via-purple-400 to-pink-400 bg-clip-text text-transparent">
-              Hello, Richita, Welcome Back
+              Hello, {currentUser?.displayName || 'User'}, Welcome Back
             </h1>
             <p className="text-gray-400 text-base">
               Let's build the future, one component at a time. What are we creating today?
             </p>
           </div>
 
-          {error && (
+          {(error || authError) && (
             <div className="bg-red-950/50 border-2 border-red-500 text-red-300 px-4 py-2 rounded-lg mb-6 max-w-2xl mx-auto shadow-lg shadow-red-500/20">
-              {error}
+              {error || authError}
             </div>
           )}
 
@@ -1055,6 +956,15 @@ Rules:
   }
 
   return null;
+}
+
+// Main App wrapper with Authentication Provider
+function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
+  );
 }
 
 export default App;
