@@ -1,18 +1,533 @@
 import React, { useState } from 'react';
-import { Star, Palette, Layout, Type, Users, Play, Sparkles, ChevronDown, Edit, Lightbulb, Code, ArrowRight, Box } from 'lucide-react';
+import { Star, Palette, Layout, Type, Users, Play, Sparkles, ChevronDown, Edit, Lightbulb, Code, ArrowRight, Box, FileText } from 'lucide-react';
 import VSCodeFileExplorer from './components/VSCodeFileExplorer';
 import Login from './components/Login';
 import SignUp from './components/SignUp';
 import UserProfile from './components/UserProfile';
 import ErrorDisplay from './components/ErrorDisplay';
+import DocumentationViewer from './components/DocumentationViewer';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { useDocumentationAgent, DocumentationModal } from './hooks/useDocumentationAgent';
 
 //ADD YOUR GEMINI API KEY HERE
 const GEMINI_API_KEY = process.env.REACT_APP_GEMINI_API_KEY || 'your-gemini-api-key-here';
 
-// Main App Component with Firebase Authentication
+// ============================================================================
+// ROBUST JSON PARSER WITH MULTIPLE FALLBACK STRATEGIES
+// ============================================================================
+
+function parseJSONWithFallbacks(content) {
+  console.log('Attempting to parse:', content.substring(0, 200) + '...');
+  
+  // Strategy 1: Direct parse
+  try {
+    const parsed = JSON.parse(content);
+    console.log('✅ Strategy 1 (Direct parse) succeeded');
+    return parsed;
+  } catch (e) {
+    console.log('❌ Strategy 1 failed:', e.message);
+  }
+  
+  // Strategy 2: Remove markdown code blocks
+  try {
+    let cleaned = content.trim();
+    cleaned = cleaned.replace(/```json\s*/gi, '');
+    cleaned = cleaned.replace(/```\s*/g, '');
+    const parsed = JSON.parse(cleaned);
+    console.log('✅ Strategy 2 (Remove markdown) succeeded');
+    return parsed;
+  } catch (e) {
+    console.log('❌ Strategy 2 failed:', e.message);
+  }
+  
+  // Strategy 3: Extract JSON from text
+  try {
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      const parsed = JSON.parse(jsonMatch[0]);
+      console.log('✅ Strategy 3 (Regex extraction) succeeded');
+      return parsed;
+    }
+  } catch (e) {
+    console.log('❌ Strategy 3 failed:', e.message);
+  }
+  
+  // Strategy 4: Find first { to last }
+  try {
+    const firstBrace = content.indexOf('{');
+    const lastBrace = content.lastIndexOf('}');
+    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+      const extracted = content.substring(firstBrace, lastBrace + 1);
+      const parsed = JSON.parse(extracted);
+      console.log('✅ Strategy 4 (Brace extraction) succeeded');
+      return parsed;
+    }
+  } catch (e) {
+    console.log('❌ Strategy 4 failed:', e.message);
+  }
+  
+  // Strategy 5: Fix common JSON issues
+  try {
+    let fixed = content.trim();
+    
+    // Remove markdown
+    fixed = fixed.replace(/```json\s*/gi, '').replace(/```\s*/g, '');
+    
+    // Remove any text before first {
+    const firstBraceIndex = fixed.indexOf('{');
+    if (firstBraceIndex > 0) {
+      fixed = fixed.substring(firstBraceIndex);
+    }
+    
+    // Remove any text after last }
+    const lastBraceIndex = fixed.lastIndexOf('}');
+    if (lastBraceIndex !== -1 && lastBraceIndex < fixed.length - 1) {
+      fixed = fixed.substring(0, lastBraceIndex + 1);
+    }
+    
+    // Fix trailing commas
+    fixed = fixed.replace(/,(\s*[}\]])/g, '$1');
+    
+    const parsed = JSON.parse(fixed);
+    console.log('✅ Strategy 5 (Fix common issues) succeeded');
+    return parsed;
+  } catch (e) {
+    console.log('❌ Strategy 5 failed:', e.message);
+  }
+  
+  // Strategy 6: Try to repair JSON
+  try {
+    let repaired = content.trim();
+    
+    // Extract JSON object
+    const match = repaired.match(/\{[\s\S]*\}/);
+    if (!match) throw new Error('No JSON object found');
+    
+    repaired = match[0];
+    
+    // Replace problematic characters
+    repaired = repaired
+      .replace(/[\u0000-\u001F]+/g, '') // Remove control characters
+      .replace(/\\'/g, "'") // Fix escaped single quotes
+      .replace(/([^\\])"/g, '$1\\"') // Escape unescaped quotes (careful with this)
+      .replace(/\\\\\\/g, '\\'); // Fix triple backslashes
+    
+    const parsed = JSON.parse(repaired);
+    console.log('✅ Strategy 6 (Repair JSON) succeeded');
+    return parsed;
+  } catch (e) {
+    console.log('❌ Strategy 6 failed:', e.message);
+  }
+  
+  console.error('❌ All parsing strategies failed');
+  return null;
+}
+
+// ============================================================================
+// FALLBACK TEMPLATE GENERATOR
+// ============================================================================
+
+function createFallbackStructure(ideation) {
+  console.log('🔧 Creating fallback structure for:', ideation.projectName);
+  
+  const projectName = ideation.projectName.toLowerCase().replace(/\s+/g, '-');
+  const colors = ideation.colorScheme;
+  
+  return {
+    name: "project-root",
+    type: "folder",
+    children: [
+      {
+        name: "src",
+        type: "folder",
+        children: [
+          {
+            name: "App.jsx",
+            type: "file",
+            content: `import React, { useState } from 'react';
+import './App.css';
+
+function App() {
+  const [activeFeature, setActiveFeature] = useState(0);
+
+  const features = [
+    ${ideation.features.map(f => `"${f}"`).join(',\n    ')}
+  ];
+
+  return (
+    <div className="min-h-screen" style={{ 
+      backgroundColor: '${colors.background}', 
+      color: '${colors.text}',
+      fontFamily: 'system-ui, -apple-system, sans-serif'
+    }}>
+      {/* Header */}
+      <header style={{ 
+        padding: '2rem',
+        background: \`linear-gradient(135deg, ${colors.primary}, ${colors.secondary})\`,
+        color: 'white'
+      }}>
+        <h1 style={{ fontSize: '2.5rem', fontWeight: 'bold', margin: 0 }}>
+          ${ideation.projectName}
+        </h1>
+        <p style={{ fontSize: '1.125rem', marginTop: '0.5rem', opacity: 0.9 }}>
+          ${ideation.description}
+        </p>
+      </header>
+
+      {/* Main Content */}
+      <main style={{ padding: '2rem', maxWidth: '1200px', margin: '0 auto' }}>
+        {/* Features Section */}
+        <section style={{ marginBottom: '3rem' }}>
+          <h2 style={{ 
+            fontSize: '2rem', 
+            fontWeight: '600', 
+            marginBottom: '1.5rem',
+            color: '${colors.primary}'
+          }}>
+            Features
+          </h2>
+          <div style={{ 
+            display: 'grid', 
+            gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
+            gap: '1.5rem'
+          }}>
+            {features.map((feature, index) => (
+              <div
+                key={index}
+                onClick={() => setActiveFeature(index)}
+                style={{
+                  padding: '1.5rem',
+                  borderRadius: '12px',
+                  backgroundColor: activeFeature === index ? '${colors.primary}' : '${colors.background}',
+                  color: activeFeature === index ? 'white' : '${colors.text}',
+                  border: \`2px solid \${activeFeature === index ? '${colors.primary}' : '${colors.secondary}'}\`,
+                  cursor: 'pointer',
+                  transition: 'all 0.3s ease',
+                  boxShadow: activeFeature === index ? '0 8px 16px rgba(0,0,0,0.1)' : 'none'
+                }}
+              >
+                <div style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>
+                  {index === 0 ? '🚀' : index === 1 ? '⚡' : index === 2 ? '🎨' : '✨'}
+                </div>
+                <div style={{ fontWeight: '500' }}>{feature}</div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* Call to Action */}
+        <section style={{
+          padding: '2rem',
+          borderRadius: '16px',
+          background: \`linear-gradient(135deg, ${colors.accent}20, ${colors.secondary}20)\`,
+          border: \`2px solid ${colors.accent}\`,
+          textAlign: 'center'
+        }}>
+          <h3 style={{ 
+            fontSize: '1.5rem', 
+            fontWeight: '600',
+            color: '${colors.accent}',
+            marginBottom: '1rem'
+          }}>
+            Ready to Get Started?
+          </h3>
+          <p style={{ marginBottom: '1.5rem', opacity: 0.8 }}>
+            This is a starter template for ${ideation.projectName}. 
+            Customize it to build your vision!
+          </p>
+          <button style={{
+            padding: '0.75rem 2rem',
+            fontSize: '1rem',
+            fontWeight: '600',
+            backgroundColor: '${colors.primary}',
+            color: 'white',
+            border: 'none',
+            borderRadius: '8px',
+            cursor: 'pointer',
+            transition: 'transform 0.2s',
+          }}
+          onMouseOver={(e) => e.target.style.transform = 'scale(1.05)'}
+          onMouseOut={(e) => e.target.style.transform = 'scale(1)'}
+          >
+            Get Started
+          </button>
+        </section>
+
+        {/* Tech Stack */}
+        <section style={{ marginTop: '3rem' }}>
+          <h2 style={{ 
+            fontSize: '1.5rem', 
+            fontWeight: '600', 
+            marginBottom: '1rem',
+            color: '${colors.secondary}'
+          }}>
+            Built With
+          </h2>
+          <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+            {[${ideation.techStack.frontend.map(t => `"${t}"`).join(', ')}].map((tech, i) => (
+              <span
+                key={i}
+                style={{
+                  padding: '0.5rem 1rem',
+                  backgroundColor: '${colors.primary}15',
+                  color: '${colors.primary}',
+                  borderRadius: '20px',
+                  fontSize: '0.875rem',
+                  fontWeight: '500'
+                }}
+              >
+                {tech}
+              </span>
+            ))}
+          </div>
+        </section>
+      </main>
+
+      {/* Footer */}
+      <footer style={{
+        padding: '2rem',
+        textAlign: 'center',
+        borderTop: \`1px solid ${colors.primary}30\`,
+        marginTop: '4rem',
+        opacity: 0.7
+      }}>
+        <p>Built with AI • ${ideation.projectName} © 2024</p>
+      </footer>
+    </div>
+  );
+}
+
+export default App;`
+          },
+          {
+            name: "App.css",
+            type: "file",
+            content: `/* ${ideation.projectName} Styles */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: ${colors.background};
+  color: ${colors.text};
+}
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+button {
+  font-family: inherit;
+}
+
+button:hover {
+  transform: scale(1.05);
+  transition: transform 0.2s ease;
+}
+
+button:active {
+  transform: scale(0.98);
+}`
+          },
+          {
+            name: "index.js",
+            type: "file",
+            content: `import React from 'react';
+import ReactDOM from 'react-dom/client';
+import './index.css';
+import App from './App';
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>
+);`
+          },
+          {
+            name: "index.css",
+            type: "file",
+            content: `@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+:root {
+  --primary: ${colors.primary};
+  --secondary: ${colors.secondary};
+  --accent: ${colors.accent};
+  --background: ${colors.background};
+  --text: ${colors.text};
+}
+
+body {
+  margin: 0;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background-color: var(--background);
+  color: var(--text);
+}
+
+* {
+  box-sizing: border-box;
+}`
+          }
+        ]
+      },
+      {
+        name: "public",
+        type: "folder",
+        children: [
+          {
+            name: "index.html",
+            type: "file",
+            content: `<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="${colors.primary}" />
+    <meta name="description" content="${ideation.description}" />
+    <title>${ideation.projectName}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+  </head>
+  <body>
+    <noscript>You need to enable JavaScript to run this app.</noscript>
+    <div id="root"></div>
+  </body>
+</html>`
+          }
+        ]
+      },
+      {
+        name: "package.json",
+        type: "file",
+        content: `{
+  "name": "${projectName}",
+  "version": "1.0.0",
+  "description": "${ideation.description}",
+  "private": true,
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-scripts": "5.0.1"
+  },
+  "scripts": {
+    "start": "react-scripts start",
+    "build": "react-scripts build",
+    "test": "react-scripts test",
+    "eject": "react-scripts eject"
+  },
+  "eslintConfig": {
+    "extends": [
+      "react-app"
+    ]
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  }
+}`
+      },
+      {
+        name: "README.md",
+        type: "file",
+        content: `# ${ideation.projectName}
+
+${ideation.description}
+
+## ✨ Features
+
+${ideation.features.map((f, i) => `${i + 1}. ${f}`).join('\n')}
+
+## 🚀 Tech Stack
+
+**Frontend:** ${ideation.techStack.frontend.join(', ')}
+
+**Backend:** ${ideation.techStack.backend.join(', ')}
+
+${ideation.techStack.database?.length > 0 ? `**Database:** ${ideation.techStack.database.join(', ')}` : ''}
+
+## 🎨 Color Scheme
+
+- **Primary:** ${colors.primary}
+- **Secondary:** ${colors.secondary}
+- **Accent:** ${colors.accent}
+- **Background:** ${colors.background}
+- **Text:** ${colors.text}
+
+## 📦 Getting Started
+
+\`\`\`bash
+# Install dependencies
+npm install
+
+# Start development server
+npm start
+\`\`\`
+
+## 🎯 Target Audience
+
+${ideation.targetAudience}
+
+## 💡 Unique Selling Point
+
+${ideation.uniqueSellingPoint}
+
+---
+
+*Generated with AI ✨*
+`
+      },
+      {
+        name: ".gitignore",
+        type: "file",
+        content: `# Dependencies
+/node_modules
+/.pnp
+.pnp.js
+
+# Testing
+/coverage
+
+# Production
+/build
+
+# Misc
+.DS_Store
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*`
+      }
+    ]
+  };
+}
+
+// ============================================================================
+// MAIN APP COMPONENT
+// ============================================================================
+
 function AppContent() {
-  const [currentView, setCurrentView] = useState('prompt'); // 'prompt', 'ideation', 'loading', 'editor', 'transition-to-dashboard', 'transition-to-ideation'
+  const [currentView, setCurrentView] = useState('prompt');
   const [prompt, setPrompt] = useState('');
   const [ideation, setIdeation] = useState(null);
   const [generatedFiles, setGeneratedFiles] = useState(null);
@@ -23,16 +538,30 @@ function AppContent() {
   const [isSignUp, setIsSignUp] = useState(false);
   const [showUserProfile, setShowUserProfile] = useState(false);
 
-  // Get authentication state and user info
+  // Documentation Agent States
+  const [showDocModal, setShowDocModal] = useState(false);
+  const [generatedDocs, setGeneratedDocs] = useState(null);
+  const [showDocsViewer, setShowDocsViewer] = useState(false);
+
   const { currentUser, isAuthenticated, error: authError, setError: setAuthError } = useAuth();
 
-  // Generate ideation from AI
+  const { 
+    generateDocumentation, 
+    addDocumentationToFiles, 
+    isGenerating, 
+    documentationProgress 
+  } = useDocumentationAgent();
+
+  // ============================================================================
+  // ENHANCED GENERATE IDEATION WITH ROBUST PARSING
+  // ============================================================================
+
   const generateIdeation = async (userPrompt) => {
     setLoading(true);
     setError('');
     
     try {
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${GEMINI_API_KEY}`, {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -44,7 +573,9 @@ function AppContent() {
 
 User Prompt: "${userPrompt}"
 
-Return ONLY a valid JSON object (no markdown, no explanation, no code blocks) in this exact format:
+CRITICAL: Return ONLY valid JSON (no markdown, no explanations, no code blocks).
+
+EXACT FORMAT:
 {
   "projectName": "A catchy name for the project",
   "description": "2-3 sentence description of what the project does",
@@ -55,49 +586,42 @@ Return ONLY a valid JSON object (no markdown, no explanation, no code blocks) in
     "Feature 4 with brief description"
   ],
   "techStack": {
-    "frontend": ["React", "Tailwind CSS", "etc"],
-    "backend": ["Node.js", "Express", "etc"],
-    "database": ["MongoDB", "PostgreSQL", "etc"],
-    "other": ["Any other tools/libraries"]
+    "frontend": ["React", "Tailwind CSS"],
+    "backend": ["Node.js", "Express"],
+    "database": ["MongoDB"],
+    "other": []
   },
   "colorScheme": {
-    "primary": "#hex-color",
-    "secondary": "#hex-color",
-    "accent": "#hex-color",
-    "background": "#hex-color",
-    "text": "#hex-color",
-    "description": "Brief description of the color scheme mood (e.g., 'Modern and professional', 'Vibrant and playful')"
+    "primary": "#6366f1",
+    "secondary": "#8b5cf6",
+    "accent": "#ec4899",
+    "background": "#ffffff",
+    "text": "#1f2937",
+    "description": "Modern and professional"
   },
   "styleGuidelines": {
-    "layout": "Brief description of layout approach",
-    "typography": "Font recommendations and typography style",
-    "iconography": "Icon style description",
-    "animation": "Animation and transition approach"
+    "layout": "Clean and minimal",
+    "typography": "Inter font family",
+    "iconography": "Line icons",
+    "animation": "Subtle transitions"
   },
-  "userFlow": [
-    "Step 1: User action",
-    "Step 2: User action",
-    "Step 3: User action"
-  ],
-  "targetAudience": "Who is this app for?",
-  "uniqueSellingPoint": "What makes this project special?"
+  "userFlow": ["Step 1", "Step 2", "Step 3"],
+  "targetAudience": "Who is this app for",
+  "uniqueSellingPoint": "What makes this project special"
 }
 
 Rules:
-1. Be specific and actionable
-2. Choose realistic tech stacks for the project type
-3. Select harmonious color schemes with good contrast
-4. Include 4-6 key features
-5. Keep descriptions concise but informative
-6. Return ONLY the JSON object, no markdown formatting`
+1. Return ONLY the JSON object
+2. No markdown formatting
+3. No explanations
+4. Valid JSON syntax`
             }]
           }],
           generationConfig: {
             temperature: 0.7,
             topK: 40,
             topP: 0.95,
-            maxOutputTokens: 2048,
-            response_mime_type: "application/json"
+            maxOutputTokens: 2048
           }
         })
       });
@@ -114,35 +638,13 @@ Rules:
       }
       
       const content = data.candidates[0].content.parts[0].text;
+      console.log('Ideation raw response:', content);
       
-      let ideationData;
-      try {
-        let cleanContent = content.trim();
-        
-        // Remove markdown code blocks
-        cleanContent = cleanContent.replace(/```json\n?/g, '').replace(/```\n?/g, '');
-        
-        // Try to extract JSON object from the response
-        const jsonMatch = cleanContent.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          cleanContent = jsonMatch[0];
-        }
-        
-        // Remove any leading/trailing text
-        cleanContent = cleanContent.replace(/^[^{]*({[\s\S]*})[^}]*$/, '$1');
-        
-        // Parse the JSON
-        ideationData = JSON.parse(cleanContent);
-        
-        // Validate required fields
-        if (!ideationData.projectName || !ideationData.features || !ideationData.techStack) {
-          throw new Error('Invalid ideation structure');
-        }
-        
-      } catch (parseError) {
-        console.error('Parse error:', parseError);
-        console.log('Raw content:', content);
-        throw new Error('Failed to parse AI response. The API returned an invalid format. Please try again.');
+      // Use robust parser
+      const ideationData = parseJSONWithFallbacks(content);
+      
+      if (!ideationData || !ideationData.projectName || !ideationData.features || !ideationData.techStack) {
+        throw new Error('Invalid ideation structure after parsing');
       }
 
       setLoading(false);
@@ -156,7 +658,10 @@ Rules:
     }
   };
 
-  // Generate file structure from ideation
+  // ============================================================================
+  // ENHANCED GENERATE FILES WITH ROBUST PARSING AND FALLBACK
+  // ============================================================================
+
   const generateFilesFromIdeation = async () => {
     setLoading(true);
     setError('');
@@ -171,7 +676,7 @@ Color Scheme: Primary ${ideation.colorScheme.primary}, Secondary ${ideation.colo
 Style Guidelines: ${JSON.stringify(ideation.styleGuidelines)}
 `;
 
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${GEMINI_API_KEY}`, {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -179,13 +684,19 @@ Style Guidelines: ${JSON.stringify(ideation.styleGuidelines)}
         body: JSON.stringify({
           contents: [{
             parts: [{
-              text: `You are a code generation assistant. Based on this project ideation, generate a complete project file structure with actual code content.
+              text: `You are a code generation assistant. Generate a complete project file structure.
 
 ${ideationContext}
 
 Original User Prompt: "${prompt}"
 
-Return ONLY a valid JSON object (no markdown, no explanation, no code blocks) in this exact format:
+CRITICAL INSTRUCTIONS:
+1. Return ONLY valid JSON - no markdown, no explanations, no code blocks
+2. Start directly with { and end with }
+3. Use proper JSON escaping: \\n for newlines, \\" for quotes
+4. Test your JSON structure before returning
+
+REQUIRED JSON FORMAT:
 {
   "name": "project-root",
   "type": "folder",
@@ -197,7 +708,7 @@ Return ONLY a valid JSON object (no markdown, no explanation, no code blocks) in
         {
           "name": "App.jsx",
           "type": "file",
-          "content": "// actual code content here"
+          "content": "import React from 'react';\\n\\nfunction App() {\\n  return <div>Hello World</div>;\\n}\\n\\nexport default App;"
         }
       ]
     }
@@ -205,25 +716,20 @@ Return ONLY a valid JSON object (no markdown, no explanation, no code blocks) in
 }
 
 Rules:
-1. Generate realistic, working code for each file
-2. Use the EXACT colors from the color scheme provided
-3. Implement the features listed in the ideation
-4. Use the tech stack specified
-5. Include all necessary files (HTML, CSS, JS, JSON, README, etc.)
-6. Add comments in the code
-7. Make the code functional and complete
-8. Return ONLY the JSON object, no markdown formatting
-9. Escape special characters properly (use \\n for newlines, \\" for quotes)
-10. For React projects, use .jsx extension for React component files
-11. Apply the color scheme and style guidelines throughout the UI`
+1. Use \\n for newlines in code content
+2. Use \\" for quotes inside strings
+3. Include working, functional code
+4. Apply the exact colors from the scheme
+5. Implement at least 2-3 main features
+6. Include package.json and README.md
+7. Return ONLY the JSON - no extra text`
             }]
           }],
           generationConfig: {
-            temperature: 0.7,
-            topK: 40,
-            topP: 0.95,
-            maxOutputTokens: 8192,
-            response_mime_type: "application/json"
+            temperature: 0.3, // Lower for more consistent JSON
+            topK: 20,
+            topP: 0.8,
+            maxOutputTokens: 8192
           }
         })
       });
@@ -239,36 +745,27 @@ Rules:
         throw new Error('Invalid response from Gemini API');
       }
       
-      const content = data.candidates[0].content.parts[0].text;
+      let content = data.candidates[0].content.parts[0].text;
+      console.log('Files raw response:', content.substring(0, 500));
       
-      let fileStructure;
-      try {
-        let cleanContent = content.trim();
-        
-        // Remove markdown code blocks
-        cleanContent = cleanContent.replace(/```json\n?/g, '').replace(/```\n?/g, '');
-        
-        // Try to extract JSON object from the response
-        const jsonMatch = cleanContent.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          cleanContent = jsonMatch[0];
-        }
-        
-        // Remove any leading/trailing text
-        cleanContent = cleanContent.replace(/^[^{]*({[\s\S]*})[^}]*$/, '$1');
-        
-        // Parse the JSON
-        fileStructure = JSON.parse(cleanContent);
-        
-        // Validate structure
-        if (!fileStructure.name || !fileStructure.type || !fileStructure.children) {
-          throw new Error('Invalid file structure');
-        }
-        
-      } catch (parseError) {
-        console.error('Parse error:', parseError);
-        console.log('Raw content:', content);
-        throw new Error('Failed to parse AI response. The API returned an invalid file structure. Please try again.');
+      // Use robust parser
+      let fileStructure = parseJSONWithFallbacks(content);
+      
+      // Validate the structure
+      if (!fileStructure || !fileStructure.name || !fileStructure.type) {
+        console.error('Invalid structure after parsing:', fileStructure);
+        throw new Error('Parsed structure is invalid');
+      }
+      
+      // Ensure children array exists
+      if (!fileStructure.children || !Array.isArray(fileStructure.children)) {
+        fileStructure.children = [];
+      }
+      
+      // If empty or invalid, use fallback
+      if (fileStructure.children.length === 0) {
+        console.warn('Empty file structure, using fallback');
+        fileStructure = createFallbackStructure(ideation);
       }
 
       setLoading(false);
@@ -276,9 +773,15 @@ Rules:
       
     } catch (err) {
       console.error('Error generating files:', err);
-      setError(err.message || 'Failed to generate files. Please try again.');
+      console.error('Full error:', err.stack);
+      
+      // ALWAYS return fallback structure instead of failing
+      console.log('🔧 Creating fallback structure...');
+      const fallbackStructure = createFallbackStructure(ideation);
+      
+      setError('⚠️ AI had some issues. We created a working starter template for you to customize!');
       setLoading(false);
-      return null;
+      return fallbackStructure;
     }
   };
 
@@ -289,11 +792,10 @@ Rules:
     }
 
     if (GEMINI_API_KEY === 'your-gemini-api-key-here') {
-      alert('Please add your Gemini API key!');
+      alert('Please add your Gemini API key in the REACT_APP_GEMINI_API_KEY environment variable!');
       return;
     }
 
-    // Show transition screen
     setCurrentView('transition-to-ideation');
     
     const ideationData = await generateIdeation(prompt);
@@ -302,7 +804,6 @@ Rules:
       setCurrentView('ideation');
       setShowIdeation(false);
       
-      // Animate features one by one
       setTimeout(() => {
         setShowIdeation(true);
         ideationData.features.forEach((_, idx) => {
@@ -312,7 +813,6 @@ Rules:
         });
       }, 300);
     } else {
-      // If error, go back to prompt
       setCurrentView('prompt');
     }
   };
@@ -320,11 +820,50 @@ Rules:
   const handlePrototype = async () => {
     setCurrentView('loading');
     const files = await generateFilesFromIdeation();
+    
     if (files) {
       setGeneratedFiles(files);
-      setCurrentView('editor');
+      
+      // Generate documentation automatically
+      try {
+        setShowDocModal(true);
+        const docs = await generateDocumentation(ideation, files);
+        setGeneratedDocs(docs);
+        
+        const filesWithDocs = addDocumentationToFiles(files, docs);
+        setGeneratedFiles(filesWithDocs);
+        
+        setShowDocModal(false);
+        setCurrentView('editor');
+      } catch (error) {
+        console.error('Documentation generation failed:', error);
+        setShowDocModal(false);
+        setCurrentView('editor');
+      }
     } else {
       setCurrentView('ideation');
+    }
+  };
+
+  const handleRegenerateDocumentation = async () => {
+    if (!generatedFiles || !ideation) {
+      alert('Please generate code first!');
+      return;
+    }
+
+    try {
+      setShowDocModal(true);
+      const docs = await generateDocumentation(ideation, generatedFiles);
+      setGeneratedDocs(docs);
+      
+      const filesWithDocs = addDocumentationToFiles(generatedFiles, docs);
+      setGeneratedFiles(filesWithDocs);
+      
+      setShowDocModal(false);
+    } catch (error) {
+      console.error('Documentation regeneration failed:', error);
+      setShowDocModal(false);
+      alert('Failed to regenerate documentation. Please try again.');
     }
   };
 
@@ -338,6 +877,7 @@ Rules:
     } else if (currentView === 'editor') {
       setCurrentView('ideation');
       setGeneratedFiles(null);
+      setGeneratedDocs(null);
       setError('');
     } else if (currentView === 'loading') {
       setCurrentView('ideation');
@@ -350,6 +890,7 @@ Rules:
     setPrompt('');
     setIdeation(null);
     setGeneratedFiles(null);
+    setGeneratedDocs(null);
     setError('');
     setShowIdeation(false);
     setAnimateFeatures([]);
@@ -364,10 +905,10 @@ Rules:
   const handleLogout = () => {
     setCurrentView('prompt');
     setShowUserProfile(false);
-    // Reset app state
     setPrompt('');
     setIdeation(null);
     setGeneratedFiles(null);
+    setGeneratedDocs(null);
     setError('');
     setShowIdeation(false);
     setAnimateFeatures([]);
@@ -393,20 +934,18 @@ Rules:
       </div>
     );
   }
+
   // Transition to Dashboard
   if (currentView === 'transition-to-dashboard') {
     return (
       <div className="h-screen bg-gray-950 relative overflow-hidden flex items-center justify-center">
-        {/* Animated background - Same theme */}
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_30%,rgba(139,92,246,0.15),transparent_50%)]"></div>
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_70%,rgba(236,72,153,0.15),transparent_50%)]"></div>
         
-        {/* Floating orbs */}
         <div className="absolute bottom-12 right-12 w-32 h-32 bg-purple-600/30 rounded-full blur-3xl animate-pulse"></div>
         <div className="absolute top-20 left-20 w-24 h-24 bg-cyan-600/20 rounded-full blur-3xl animate-pulse" style={{animationDelay: '1s'}}></div>
 
         <div className="relative z-10 text-center">
-          {/* Spinning loader */}
           <div className="mb-8 flex justify-center">
             <div className="relative">
               <div className="w-20 h-20 border-4 border-cyan-500/30 border-t-cyan-500 rounded-full animate-spin"></div>
@@ -414,7 +953,6 @@ Rules:
             </div>
           </div>
 
-          {/* Loading text */}
           <h2 className="text-2xl font-bold mb-3 bg-gradient-to-r from-cyan-300 via-purple-400 to-pink-400 bg-clip-text text-transparent">
             Taking you to your workspace
           </h2>
@@ -422,7 +960,6 @@ Rules:
             Getting everything ready...
           </p>
 
-          {/* Progress dots animation */}
           <div className="flex items-center justify-center gap-2 mt-6">
             <div className="w-2.5 h-2.5 bg-cyan-500 rounded-full animate-bounce"></div>
             <div className="w-2.5 h-2.5 bg-purple-500 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
@@ -437,12 +974,10 @@ Rules:
   if (currentView === 'prompt') {
     return (
       <div className="h-screen bg-gray-950 p-6 pr-12 relative overflow-hidden flex flex-col">
-        {/* Animated background */}
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_30%,rgba(139,92,246,0.15),transparent_50%)]"></div>
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_70%,rgba(236,72,153,0.15),transparent_50%)]"></div>
         
         <div className="max-w-[1600px] mx-auto w-full relative z-10 flex flex-col justify-center h-full">
-          {/* Top Navigation Bar */}
           <div className="absolute top-0 right-0 p-4">
             <div className="flex items-center gap-4">
               <span className="text-gray-300 text-sm">
@@ -465,7 +1000,6 @@ Rules:
             </div>
           </div>
 
-          {/* Header */}
           <div className="text-center mb-8">
             <h1 className="text-5xl font-bold mb-2 bg-gradient-to-r from-cyan-300 via-purple-400 to-pink-400 bg-clip-text text-transparent">
               Hello, {currentUser?.displayName || 'User'}, Welcome Back
@@ -481,9 +1015,7 @@ Rules:
             </div>
           )}
 
-          {/* Main Content */}
           <div className="grid grid-cols-1 lg:grid-cols-7 gap-6 items-center">
-            {/* Left Side - Prototype Creator (3/7) */}
             <div className="lg:col-span-3 flex flex-col justify-center max-w-lg mx-auto w-full">
               <div className="bg-gray-900/80 rounded-xl p-6 border-2 border-gray-700/40 hover:border-gray-600/60 transition-all shadow-lg">
                 <h2 className="text-lg font-semibold text-white mb-1">Prototype an app with AI</h2>
@@ -528,13 +1060,11 @@ Rules:
               </div>
             </div>
 
-            {/* Right Side - My Projects (4/7) */}
             <div className="lg:col-span-4 flex flex-col min-h-0 bg-gray-900/80 rounded-xl p-6 border-2 border-gray-700/40 hover:border-gray-600/60 transition-all shadow-lg" style={{ maxHeight: '500px' }}>
               <h2 className="text-xl font-bold text-white mb-1">My Projects</h2>
               <p className="text-gray-400 text-sm mb-4">Your collection of AI-generated prototypes.</p>
               
-              <div className="grid grid-cols-2 gap-3 overflow-y-auto"  style={{ maxHeight: '400px' }}>
-                {/* Project 1 */}
+              <div className="grid grid-cols-2 gap-3 overflow-y-auto" style={{ maxHeight: '400px' }}>
                 <div className="bg-gray-900/80 rounded-lg p-4 border-2 border-purple-500/40 hover:border-purple-400/70 transition-all cursor-pointer group shadow-lg shadow-purple-500/10 hover:shadow-purple-500/30 flex flex-col justify-between">
                   <div>
                     <div className="flex items-start justify-between mb-2">
@@ -552,7 +1082,6 @@ Rules:
                   <div className="text-xs text-gray-400">Last accessed: 2 days ago</div>
                 </div>
 
-                {/* Project 2 */}
                 <div className="bg-gray-900/80 rounded-lg p-4 border-2 border-pink-500/40 hover:border-pink-400/70 transition-all cursor-pointer group shadow-lg shadow-pink-500/10 hover:shadow-pink-500/30 flex flex-col justify-between">
                   <div>
                     <div className="flex items-start justify-between mb-2">
@@ -570,7 +1099,6 @@ Rules:
                   <div className="text-xs text-gray-400">Last accessed: 5 days ago</div>
                 </div>
 
-                {/* Project 3 */}
                 <div className="bg-gray-900/80 rounded-lg p-4 border-2 border-cyan-500/40 hover:border-cyan-400/70 transition-all cursor-pointer group shadow-lg shadow-cyan-500/10 hover:shadow-cyan-500/30 flex flex-col justify-between">
                   <div>
                     <div className="flex items-start justify-between mb-2">
@@ -588,7 +1116,6 @@ Rules:
                   <div className="text-xs text-gray-400">Last accessed: 1 week ago</div>
                 </div>
 
-                {/* Project 4 */}
                 <div className="bg-gray-900/80 rounded-lg p-4 border-2 border-green-500/40 hover:border-green-400/70 transition-all cursor-pointer group shadow-lg shadow-green-500/10 hover:shadow-green-500/30 flex flex-col justify-between">
                   <div>
                     <div className="flex items-start justify-between mb-2">
@@ -609,7 +1136,6 @@ Rules:
             </div>
           </div>
 
-          {/* Bottom Actions */}
           <div className="flex items-center justify-center gap-4 mt-12">
             <button className="flex items-center gap-2 px-5 py-2 bg-transparent hover:bg-gray-900/50 text-cyan-400 rounded-lg font-medium transition-all border-2 border-gray-800 hover:border-cyan-500/50 hover:shadow-lg hover:shadow-cyan-500/20">
               <ArrowRight size={16} />
@@ -621,13 +1147,11 @@ Rules:
             </button>
           </div>
 
-          {/* Powered by footer */}
           <p className="text-center text-xs text-gray-600 mt-4">
-            Powered by Google Gemini 2.0 Flash
+            Powered by Google Gemini 1.5 Flash
           </p>
         </div>
 
-        {/* Floating orbs */}
         <div className="absolute bottom-12 right-12 w-32 h-32 bg-purple-600/30 rounded-full blur-3xl animate-pulse"></div>
         <div className="absolute top-20 left-20 w-24 h-24 bg-cyan-600/20 rounded-full blur-3xl animate-pulse" style={{animationDelay: '1s'}}></div>
       </div>
@@ -638,16 +1162,13 @@ Rules:
   if (currentView === 'transition-to-ideation') {
     return (
       <div className="h-screen bg-gray-950 relative overflow-hidden flex items-center justify-center">
-        {/* Animated background - Same theme */}
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_30%,rgba(139,92,246,0.15),transparent_50%)]"></div>
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_70%,rgba(236,72,153,0.15),transparent_50%)]"></div>
         
-        {/* Floating orbs */}
         <div className="absolute bottom-12 right-12 w-32 h-32 bg-purple-600/30 rounded-full blur-3xl animate-pulse"></div>
         <div className="absolute top-20 left-20 w-24 h-24 bg-cyan-600/20 rounded-full blur-3xl animate-pulse" style={{animationDelay: '1s'}}></div>
 
         <div className="relative z-10 text-center">
-          {/* Spinning loader */}
           <div className="mb-8 flex justify-center">
             <div className="relative">
               <div className="w-20 h-20 border-4 border-purple-500/30 border-t-purple-500 rounded-full animate-spin"></div>
@@ -655,7 +1176,6 @@ Rules:
             </div>
           </div>
 
-          {/* Loading text */}
           <h2 className="text-2xl font-bold mb-3 bg-gradient-to-r from-purple-300 via-pink-400 to-purple-400 bg-clip-text text-transparent">
             Ideating Your Prompt
           </h2>
@@ -666,7 +1186,6 @@ Rules:
             This may take a moment
           </p>
 
-          {/* Progress dots animation */}
           <div className="flex items-center justify-center gap-2 mt-6">
             <div className="w-2.5 h-2.5 bg-purple-500 rounded-full animate-bounce"></div>
             <div className="w-2.5 h-2.5 bg-pink-500 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
@@ -677,20 +1196,17 @@ Rules:
     );
   }
 
-  // Ideation View (Blueprint Style)
+  // Ideation View
   if (currentView === 'ideation' && ideation) {
     return (
       <div className="min-h-screen bg-gray-950 text-gray-100 p-8 relative overflow-hidden">
-        {/* Animated background - Same as first page */}
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_30%,rgba(139,92,246,0.15),transparent_50%)]"></div>
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_70%,rgba(236,72,153,0.15),transparent_50%)]"></div>
         
-        {/* Floating orbs */}
         <div className="absolute bottom-12 right-12 w-32 h-32 bg-purple-600/30 rounded-full blur-3xl animate-pulse"></div>
         <div className="absolute top-20 left-20 w-24 h-24 bg-cyan-600/20 rounded-full blur-3xl animate-pulse" style={{animationDelay: '1s'}}></div>
         
         <div className={`max-w-4xl mx-auto relative z-10 transition-all duration-700 ${showIdeation ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
-          {/* Header */}
           <div className="flex items-center justify-between mb-8">
             <div>
               <div className="text-sm text-gray-400 mb-2">App Blueprint</div>
@@ -713,7 +1229,6 @@ Rules:
             </div>
           )}
 
-          {/* Features Section */}
           <div className="mb-8">
             <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">FEATURES</h2>
             <div className="space-y-3">
@@ -735,15 +1250,13 @@ Rules:
               ))}
             </div>
             <div className="mt-4 text-sm text-gray-500">
-              Add features by <span className="text-purple-400 cursor-pointer hover:text-purple-300">customizing the blueprint</span> or <span className="text-purple-400 cursor-pointer hover:text-purple-300">prompting below</span>
+              Add features by <span className="text-purple-400 cursor-pointer hover:text-purple-300">customizing the blueprint</span>
             </div>
           </div>
 
-          {/* Style Guidelines Section */}
           <div className="mb-8">
             <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">STYLE GUIDELINES</h2>
             <div className="space-y-4 border border-purple-500/20 rounded-lg p-5 bg-gray-800/30">
-              {/* Color */}
               <div className="flex items-center gap-4">
                 <div className="flex items-center gap-2 w-40 text-gray-400">
                   <Palette size={18} />
@@ -764,7 +1277,6 @@ Rules:
                 </div>
               </div>
 
-              {/* Layout */}
               {ideation.styleGuidelines?.layout && (
                 <div className="flex items-start gap-4">
                   <div className="flex items-center gap-2 w-40 text-gray-400 flex-shrink-0">
@@ -775,7 +1287,6 @@ Rules:
                 </div>
               )}
 
-              {/* Typography */}
               {ideation.styleGuidelines?.typography && (
                 <div className="flex items-start gap-4">
                   <div className="flex items-center gap-2 w-40 text-gray-400 flex-shrink-0">
@@ -786,7 +1297,6 @@ Rules:
                 </div>
               )}
 
-              {/* Iconography */}
               {ideation.styleGuidelines?.iconography && (
                 <div className="flex items-start gap-4">
                   <div className="flex items-center gap-2 w-40 text-gray-400 flex-shrink-0">
@@ -797,7 +1307,6 @@ Rules:
                 </div>
               )}
 
-              {/* Animation */}
               {ideation.styleGuidelines?.animation && (
                 <div className="flex items-start gap-4">
                   <div className="flex items-center gap-2 w-40 text-gray-400 flex-shrink-0">
@@ -810,7 +1319,6 @@ Rules:
             </div>
           </div>
 
-          {/* Stack Section */}
           <div className="mb-8">
             <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">STACK</h2>
             <div className="space-y-3">
@@ -855,7 +1363,6 @@ Rules:
             </div>
           </div>
 
-          {/* Action Buttons */}
           <div className="flex gap-4 justify-end">
             <button
               onClick={handleStartOver}
@@ -871,10 +1378,13 @@ Rules:
               {loading ? (
                 <>
                   <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
-                  Generating Code...
+                  Generating Code & Docs...
                 </>
               ) : (
-                'Prototype this App'
+                <>
+                  <FileText size={18} />
+                  Prototype with Docs
+                </>
               )}
             </button>
           </div>
@@ -887,16 +1397,13 @@ Rules:
   if (currentView === 'loading') {
     return (
       <div className="h-screen bg-gray-950 relative overflow-hidden flex items-center justify-center">
-        {/* Animated background - Same theme */}
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_30%,rgba(139,92,246,0.15),transparent_50%)]"></div>
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_70%,rgba(236,72,153,0.15),transparent_50%)]"></div>
         
-        {/* Floating orbs */}
         <div className="absolute bottom-12 right-12 w-32 h-32 bg-purple-600/30 rounded-full blur-3xl animate-pulse"></div>
         <div className="absolute top-20 left-20 w-24 h-24 bg-cyan-600/20 rounded-full blur-3xl animate-pulse" style={{animationDelay: '1s'}}></div>
 
         <div className="relative z-10 text-center">
-          {/* Large spinning loader */}
           <div className="mb-8 flex justify-center">
             <div className="relative">
               <div className="w-24 h-24 border-4 border-purple-500/30 border-t-purple-500 rounded-full animate-spin"></div>
@@ -904,7 +1411,6 @@ Rules:
             </div>
           </div>
 
-          {/* Loading text */}
           <h2 className="text-3xl font-bold mb-4 bg-gradient-to-r from-cyan-300 via-purple-400 to-pink-400 bg-clip-text text-transparent">
             Building Your Project
           </h2>
@@ -915,7 +1421,6 @@ Rules:
             This may take a few moments
           </p>
 
-          {/* Progress dots animation */}
           <div className="flex items-center justify-center gap-2 mt-8">
             <div className="w-3 h-3 bg-purple-500 rounded-full animate-bounce"></div>
             <div className="w-3 h-3 bg-pink-500 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
@@ -942,6 +1447,28 @@ Rules:
               <span className="text-sm text-gray-400">Project: </span>
               <span className="font-semibold">{ideation?.projectName || 'Untitled'}</span>
             </div>
+            
+            {/* View Documentation Button */}
+            {generatedDocs && (
+              <button
+                onClick={() => setShowDocsViewer(true)}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors flex items-center gap-2"
+              >
+                <FileText size={16} />
+                View Docs
+              </button>
+            )}
+            
+            {/* Regenerate Documentation Button */}
+            <button
+              onClick={handleRegenerateDocumentation}
+              disabled={isGenerating}
+              className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium transition-colors flex items-center gap-2 disabled:opacity-50"
+              title="Regenerate Documentation"
+            >
+              <FileText size={16} />
+              {isGenerating ? 'Generating...' : 'Update Docs'}
+            </button>
           </div>
           <button
             onClick={handleStartOver}
@@ -951,6 +1478,22 @@ Rules:
           </button>
         </div>
         <VSCodeFileExplorer generatedFiles={generatedFiles} />
+        
+        {/* Documentation Generation Modal */}
+        <DocumentationModal 
+          isOpen={showDocModal}
+          onClose={() => setShowDocModal(false)}
+          progress={documentationProgress}
+        />
+        
+        {/* Documentation Viewer */}
+        {showDocsViewer && generatedDocs && (
+          <DocumentationViewer
+            documentation={generatedDocs}
+            projectName={ideation?.projectName || 'Project'}
+            onClose={() => setShowDocsViewer(false)}
+          />
+        )}
       </div>
     );
   }
