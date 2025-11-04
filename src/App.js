@@ -658,45 +658,81 @@ Rules:
     }
   };
 
-  // ============================================================================
-  // ENHANCED GENERATE FILES WITH ROBUST PARSING AND FALLBACK
-  // ============================================================================
+ // ============================================================================
+// ENHANCED generateFilesFromIdeation FUNCTION
+// Replace your existing function with this improved version
+// ============================================================================
 
-  const generateFilesFromIdeation = async () => {
-    setLoading(true);
-    setError('');
-    
-    try {
-      const ideationContext = `
-Project: ${ideation.projectName}
+const generateFilesFromIdeation = async () => {
+  setLoading(true);
+  setError('');
+  
+  try {
+    // Create detailed context about what to build
+    const ideationContext = `
+PROJECT SPECIFICATION:
+======================
+Name: ${ideation.projectName}
 Description: ${ideation.description}
-Features: ${ideation.features.join(', ')}
-Tech Stack: Frontend - ${ideation.techStack.frontend.join(', ')}, Backend - ${ideation.techStack.backend.join(', ')}
-Color Scheme: Primary ${ideation.colorScheme.primary}, Secondary ${ideation.colorScheme.secondary}, Accent ${ideation.colorScheme.accent}
-Style Guidelines: ${JSON.stringify(ideation.styleGuidelines)}
+Target Audience: ${ideation.targetAudience}
+Unique Selling Point: ${ideation.uniqueSellingPoint}
+
+FEATURES TO IMPLEMENT:
+${ideation.features.map((f, i) => `${i + 1}. ${f}`).join('\n')}
+
+TECHNOLOGY STACK:
+- Frontend: ${ideation.techStack.frontend.join(', ')}
+- Backend: ${ideation.techStack.backend.join(', ')}
+${ideation.techStack.database ? `- Database: ${ideation.techStack.database.join(', ')}` : ''}
+
+DESIGN SYSTEM:
+- Primary Color: ${ideation.colorScheme.primary}
+- Secondary Color: ${ideation.colorScheme.secondary}
+- Accent Color: ${ideation.colorScheme.accent}
+- Background: ${ideation.colorScheme.background}
+- Text Color: ${ideation.colorScheme.text}
+- Layout: ${ideation.styleGuidelines.layout}
+- Typography: ${ideation.styleGuidelines.typography}
+
+USER FLOW:
+${ideation.userFlow.map((step, i) => `Step ${i + 1}: ${step}`).join('\n')}
 `;
 
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`,
+      {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           contents: [{
             parts: [{
-              text: `You are a code generation assistant. Generate a complete project file structure.
+              text: `You are an expert full-stack developer. Create a COMPLETE, FUNCTIONAL, PRODUCTION-READY React website based on these specifications.
 
 ${ideationContext}
 
-Original User Prompt: "${prompt}"
+CRITICAL REQUIREMENTS:
+1. Build a REAL, WORKING website - NOT just a landing page displaying features
+2. Implement ALL features listed above with actual functionality
+3. Create multiple pages/views with React Router if needed
+4. Include forms, buttons, interactive elements, state management
+5. Use the exact color scheme provided
+6. Make it responsive and modern
+7. Add proper error handling and loading states
 
-CRITICAL INSTRUCTIONS:
-1. Return ONLY valid JSON - no markdown, no explanations, no code blocks
-2. Start directly with { and end with }
-3. Use proper JSON escaping: \\n for newlines, \\" for quotes
-4. Test your JSON structure before returning
+MUST CREATE THESE FILES:
+1. src/App.jsx - Main application with routing and feature implementation
+2. src/components/ - Individual components for each major feature
+3. src/pages/ - Separate pages if multi-page app
+4. src/styles/ or individual component styles
+5. src/utils/ - Helper functions if needed
+6. src/hooks/ - Custom React hooks if needed
+7. package.json - Complete with all dependencies
+8. README.md - Detailed documentation
+9. public/index.html - Proper HTML structure
 
-REQUIRED JSON FORMAT:
+FILE STRUCTURE JSON FORMAT:
+Return ONLY valid JSON in this EXACT structure (no markdown, no explanations):
+
 {
   "name": "project-root",
   "type": "folder",
@@ -708,82 +744,1134 @@ REQUIRED JSON FORMAT:
         {
           "name": "App.jsx",
           "type": "file",
-          "content": "import React from 'react';\\n\\nfunction App() {\\n  return <div>Hello World</div>;\\n}\\n\\nexport default App;"
+          "content": "// Complete React app code here with all features implemented\\n// Must include:\\n// - useState/useEffect for state management\\n// - Multiple components/sections\\n// - Event handlers for interactions\\n// - Forms if applicable\\n// - API calls if applicable\\n// - Proper styling"
+        },
+        {
+          "name": "components",
+          "type": "folder",
+          "children": [
+            {
+              "name": "Header.jsx",
+              "type": "file",
+              "content": "// Navigation component"
+            },
+            {
+              "name": "Footer.jsx",
+              "type": "file",
+              "content": "// Footer component"
+            }
+            // Add MORE components for EACH feature
+          ]
+        },
+        {
+          "name": "pages",
+          "type": "folder",
+          "children": [
+            {
+              "name": "Home.jsx",
+              "type": "file",
+              "content": "// Home page component"
+            }
+            // Add pages for different sections
+          ]
+        },
+        {
+          "name": "index.js",
+          "type": "file",
+          "content": "import React from 'react';\\nimport ReactDOM from 'react-dom/client';\\nimport './index.css';\\nimport App from './App';\\n\\nconst root = ReactDOM.createRoot(document.getElementById('root'));\\nroot.render(<React.StrictMode><App /></React.StrictMode>);"
+        },
+        {
+          "name": "index.css",
+          "type": "file",
+          "content": "/* Global styles with the color scheme */"
         }
       ]
+    },
+    {
+      "name": "public",
+      "type": "folder",
+      "children": [
+        {
+          "name": "index.html",
+          "type": "file",
+          "content": "<!DOCTYPE html>\\n<html lang=\\"en\\">\\n<head>\\n  <meta charset=\\"utf-8\\" />\\n  <meta name=\\"viewport\\" content=\\"width=device-width, initial-scale=1\\" />\\n  <title>${ideation.projectName}</title>\\n  <script src=\\"https://cdn.tailwindcss.com\\"></script>\\n</head>\\n<body>\\n  <div id=\\"root\\"></div>\\n</body>\\n</html>"
+        }
+      ]
+    },
+    {
+      "name": "package.json",
+      "type": "file",
+      "content": "{\\n  \\"name\\": \\"${ideation.projectName.toLowerCase().replace(/\\s+/g, '-')}\\",\\n  \\"version\\": \\"1.0.0\\",\\n  \\"dependencies\\": {\\n    \\"react\\": \\"^18.2.0\\",\\n    \\"react-dom\\": \\"^18.2.0\\",\\n    \\"react-router-dom\\": \\"^6.16.0\\",\\n    \\"react-scripts\\": \\"5.0.1\\"\\n  },\\n  \\"scripts\\": {\\n    \\"start\\": \\"react-scripts start\\",\\n    \\"build\\": \\"react-scripts build\\"\\n  }\\n}"
     }
   ]
 }
 
-Rules:
-1. Use \\n for newlines in code content
-2. Use \\" for quotes inside strings
-3. Include working, functional code
-4. Apply the exact colors from the scheme
-5. Implement at least 2-3 main features
-6. Include package.json and README.md
-7. Return ONLY the JSON - no extra text`
+IMPLEMENTATION GUIDELINES:
+
+For App.jsx, implement it like this example structure:
+
+import React, { useState, useEffect } from 'react';
+// Import all components
+
+function App() {
+  // State management for all features
+  const [activeFeature, setActiveFeature] = useState(null);
+  const [data, setData] = useState([]);
+  const [loading, setLoading] = useState(false);
+  // ... more state as needed
+
+  // Implement actual feature logic
+  const handleFeature1 = () => {
+    // Real implementation
+  };
+
+  const handleFeature2 = () => {
+    // Real implementation
+  };
+
+  return (
+    <div style={{ background: '${ideation.colorScheme.background}', minHeight: '100vh' }}>
+      {/* Header/Navigation */}
+      <header>...</header>
+      
+      {/* Main feature sections - each should be interactive */}
+      <main>
+        {/* Feature 1 Implementation */}
+        <section id="feature1">
+          <h2>Feature 1</h2>
+          {/* Forms, buttons, displays, etc. */}
+        </section>
+
+        {/* Feature 2 Implementation */}
+        <section id="feature2">
+          <h2>Feature 2</h2>
+          {/* Interactive elements */}
+        </section>
+
+        {/* Continue for all features */}
+      </main>
+
+      {/* Footer */}
+      <footer>...</footer>
+    </div>
+  );
+}
+
+export default App;
+
+EXAMPLES OF WHAT TO BUILD:
+
+If it's a "Task Manager":
+- Create actual task list with add/edit/delete functionality
+- Mark tasks complete
+- Filter/sort tasks
+- Local storage persistence
+
+If it's an "E-commerce Site":
+- Product catalog with real items
+- Shopping cart with add/remove
+- Checkout form
+- Product search/filter
+
+If it's a "Blog Platform":
+- Post list/grid
+- Individual post view
+- Comment system
+- Search functionality
+
+If it's a "Weather App":
+- City search input
+- API integration (mock if needed)
+- Display current weather
+- 5-day forecast
+
+BUILD THE ACTUAL APPLICATION, NOT JUST A DESCRIPTION OF IT.
+
+Return ONLY the JSON structure with complete, working code.`
             }]
           }],
           generationConfig: {
-            temperature: 0.3, // Lower for more consistent JSON
-            topK: 20,
-            topP: 0.8,
+            temperature: 0.4, // Lower for more consistent structure
+            topK: 40,
+            topP: 0.9,
             maxOutputTokens: 8192
           }
         })
-      });
+      }
+    );
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(`API Error: ${response.status} - ${errorData.error?.message || response.statusText}`);
-      }
+    if (!response.ok) {
+      throw new Error(`API Error: ${response.status}`);
+    }
 
-      const data = await response.json();
-      
-      if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
-        throw new Error('Invalid response from Gemini API');
-      }
-      
-      let content = data.candidates[0].content.parts[0].text;
-      console.log('Files raw response:', content.substring(0, 500));
-      
-      // Use robust parser
-      let fileStructure = parseJSONWithFallbacks(content);
-      
-      // Validate the structure
-      if (!fileStructure || !fileStructure.name || !fileStructure.type) {
-        console.error('Invalid structure after parsing:', fileStructure);
-        throw new Error('Parsed structure is invalid');
-      }
-      
-      // Ensure children array exists
-      if (!fileStructure.children || !Array.isArray(fileStructure.children)) {
-        fileStructure.children = [];
-      }
-      
-      // If empty or invalid, use fallback
-      if (fileStructure.children.length === 0) {
-        console.warn('Empty file structure, using fallback');
-        fileStructure = createFallbackStructure(ideation);
-      }
+    const data = await response.json();
+    
+    if (!data.candidates?.[0]?.content) {
+      throw new Error('Invalid API response');
+    }
+    
+    let content = data.candidates[0].content.parts[0].text;
+    console.log('Generated files response:', content.substring(0, 500));
+    
+    let fileStructure = parseJSONWithFallbacks(content);
+    
+    if (!fileStructure || !fileStructure.name || !fileStructure.children?.length) {
+      console.warn('Invalid structure, using enhanced fallback');
+      fileStructure = createEnhancedFallbackStructure(ideation);
+    }
 
-      setLoading(false);
-      return fileStructure;
-      
-    } catch (err) {
-      console.error('Error generating files:', err);
-      console.error('Full error:', err.stack);
-      
-      // ALWAYS return fallback structure instead of failing
-      console.log('🔧 Creating fallback structure...');
-      const fallbackStructure = createFallbackStructure(ideation);
-      
-      setError('⚠️ AI had some issues. We created a working starter template for you to customize!');
-      setLoading(false);
-      return fallbackStructure;
+    setLoading(false);
+    return fileStructure;
+    
+  } catch (err) {
+    console.error('Error generating files:', err);
+    console.log('🔧 Creating enhanced functional website...');
+    const fallbackStructure = createEnhancedFallbackStructure(ideation);
+    
+    setError('⚠️ AI generation had issues. Created a functional starter website for you!');
+    setLoading(false);
+    return fallbackStructure;
+  }
+};
+
+// ============================================================================
+// ENHANCED FALLBACK - Creates actual functional websites
+// ============================================================================
+
+function createEnhancedFallbackStructure(ideation) {
+  console.log('🔧 Creating enhanced functional website for:', ideation.projectName);
+  
+  const projectName = ideation.projectName.toLowerCase().replace(/\s+/g, '-');
+  const colors = ideation.colorScheme;
+  
+  // Determine app type and create appropriate structure
+  const appType = determineAppType(ideation);
+  
+  return {
+    name: "project-root",
+    type: "folder",
+    children: [
+      {
+        name: "src",
+        type: "folder",
+        children: [
+          // Main App component with actual functionality
+          {
+            name: "App.jsx",
+            type: "file",
+            content: generateFunctionalApp(ideation, appType, colors)
+          },
+          // Components folder with real components
+          {
+            name: "components",
+            type: "folder",
+            children: generateComponents(ideation, colors, appType)
+          },
+          // Pages folder if multi-page
+          {
+            name: "pages",
+            type: "folder",
+            children: generatePages(ideation, colors, appType)
+          },
+          // Styles
+          {
+            name: "App.css",
+            type: "file",
+            content: generateAppCSS(colors)
+          },
+          {
+            name: "index.js",
+            type: "file",
+            content: `import React from 'react';
+import ReactDOM from 'react-dom/client';
+import './index.css';
+import App from './App';
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>
+);`
+          },
+          {
+            name: "index.css",
+            type: "file",
+            content: generateIndexCSS(colors)
+          }
+        ]
+      },
+      {
+        name: "public",
+        type: "folder",
+        children: [
+          {
+            name: "index.html",
+            type: "file",
+            content: `<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="${colors.primary}" />
+    <meta name="description" content="${ideation.description}" />
+    <title>${ideation.projectName}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+  </head>
+  <body>
+    <noscript>You need to enable JavaScript to run this app.</noscript>
+    <div id="root"></div>
+  </body>
+</html>`
+          }
+        ]
+      },
+      {
+        name: "package.json",
+        type: "file",
+        content: `{
+  "name": "${projectName}",
+  "version": "1.0.0",
+  "description": "${ideation.description}",
+  "private": true,
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.16.0",
+    "react-scripts": "5.0.1"
+  },
+  "scripts": {
+    "start": "react-scripts start",
+    "build": "react-scripts build",
+    "test": "react-scripts test",
+    "eject": "react-scripts eject"
+  },
+  "eslintConfig": {
+    "extends": ["react-app"]
+  },
+  "browserslist": {
+    "production": [">0.2%", "not dead", "not op_mini all"],
+    "development": ["last 1 chrome version", "last 1 firefox version", "last 1 safari version"]
+  }
+}`
+      },
+      {
+        name: "README.md",
+        type: "file",
+        content: generateREADME(ideation)
+      }
+    ]
+  };
+}
+
+// Helper to determine app type
+function determineAppType(ideation) {
+  const desc = ideation.description.toLowerCase();
+  const features = ideation.features.join(' ').toLowerCase();
+  const combined = desc + ' ' + features;
+  
+  if (combined.includes('task') || combined.includes('todo') || combined.includes('manage')) {
+    return 'task-manager';
+  } else if (combined.includes('shop') || combined.includes('ecommerce') || combined.includes('cart')) {
+    return 'ecommerce';
+  } else if (combined.includes('blog') || combined.includes('post') || combined.includes('article')) {
+    return 'blog';
+  } else if (combined.includes('dashboard') || combined.includes('analytics')) {
+    return 'dashboard';
+  } else if (combined.includes('social') || combined.includes('community')) {
+    return 'social';
+  } else if (combined.includes('portfolio')) {
+    return 'portfolio';
+  }
+  
+  return 'general-app';
+}
+
+// ============================================================================
+// FUNCTIONAL CODE GENERATORS - Add these functions to your App.js
+// ============================================================================
+
+// Generate functional App.jsx based on app type
+function generateFunctionalApp(ideation, appType, colors) {
+  const templates = {
+    'task-manager': `import React, { useState, useEffect } from 'react';
+import './App.css';
+
+function App() {
+  const [tasks, setTasks] = useState([]);
+  const [newTask, setNewTask] = useState('');
+  const [filter, setFilter] = useState('all');
+
+  useEffect(() => {
+    const saved = localStorage.getItem('tasks');
+    if (saved) setTasks(JSON.parse(saved));
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem('tasks', JSON.stringify(tasks));
+  }, [tasks]);
+
+  const addTask = () => {
+    if (newTask.trim()) {
+      setTasks([...tasks, { id: Date.now(), text: newTask, completed: false }]);
+      setNewTask('');
     }
   };
+
+  const toggleTask = (id) => {
+    setTasks(tasks.map(task => 
+      task.id === id ? { ...task, completed: !task.completed } : task
+    ));
+  };
+
+  const deleteTask = (id) => {
+    setTasks(tasks.filter(task => task.id !== id));
+  };
+
+  const filteredTasks = tasks.filter(task => {
+    if (filter === 'active') return !task.completed;
+    if (filter === 'completed') return task.completed;
+    return true;
+  });
+
+  return (
+    <div style={{ minHeight: '100vh', backgroundColor: '${colors.background}', color: '${colors.text}', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+      <header style={{ background: \`linear-gradient(135deg, ${colors.primary}, ${colors.secondary})\`, padding: '2rem', color: 'white', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
+        <h1 style={{ fontSize: '2.5rem', fontWeight: 'bold', margin: 0 }}>${ideation.projectName}</h1>
+        <p style={{ fontSize: '1.125rem', marginTop: '0.5rem', opacity: 0.9 }}>${ideation.description}</p>
+      </header>
+
+      <main style={{ maxWidth: '800px', margin: '0 auto', padding: '2rem' }}>
+        {/* Add Task Section */}
+        <div style={{ backgroundColor: 'white', padding: '2rem', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)', marginBottom: '2rem' }}>
+          <h2 style={{ fontSize: '1.5rem', fontWeight: '600', marginBottom: '1rem', color: '${colors.primary}' }}>Add New Task</h2>
+          <div style={{ display: 'flex', gap: '1rem' }}>
+            <input
+              type="text"
+              value={newTask}
+              onChange={(e) => setNewTask(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && addTask()}
+              placeholder="What needs to be done?"
+              style={{ flex: 1, padding: '0.75rem 1rem', fontSize: '1rem', border: \`2px solid ${colors.primary}30\`, borderRadius: '8px', outline: 'none' }}
+            />
+            <button
+              onClick={addTask}
+              style={{ padding: '0.75rem 2rem', backgroundColor: '${colors.primary}', color: 'white', border: 'none', borderRadius: '8px', fontWeight: '600', cursor: 'pointer', transition: 'transform 0.2s' }}
+              onMouseOver={(e) => e.target.style.transform = 'scale(1.05)'}
+              onMouseOut={(e) => e.target.style.transform = 'scale(1)'}
+            >
+              Add Task
+            </button>
+          </div>
+        </div>
+
+        {/* Filter Tabs */}
+        <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem' }}>
+          {['all', 'active', 'completed'].map(f => (
+            <button
+              key={f}
+              onClick={() => setFilter(f)}
+              style={{
+                padding: '0.5rem 1.5rem',
+                backgroundColor: filter === f ? '${colors.primary}' : 'white',
+                color: filter === f ? 'white' : '${colors.text}',
+                border: \`2px solid ${colors.primary}\`,
+                borderRadius: '20px',
+                fontWeight: '600',
+                cursor: 'pointer',
+                textTransform: 'capitalize',
+                transition: 'all 0.2s'
+              }}
+            >
+              {f} ({f === 'all' ? tasks.length : f === 'active' ? tasks.filter(t => !t.completed).length : tasks.filter(t => t.completed).length})
+            </button>
+          ))}
+        </div>
+
+        {/* Task List */}
+        <div style={{ backgroundColor: 'white', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
+          {filteredTasks.length === 0 ? (
+            <div style={{ padding: '3rem', textAlign: 'center', color: '${colors.text}80' }}>
+              <p style={{ fontSize: '1.25rem' }}>No tasks yet!</p>
+              <p>Add your first task above to get started.</p>
+            </div>
+          ) : (
+            filteredTasks.map(task => (
+              <div
+                key={task.id}
+                style={{
+                  padding: '1rem 1.5rem',
+                  borderBottom: '1px solid #eee',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '1rem',
+                  transition: 'background-color 0.2s'
+                }}
+                onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#f9f9f9'}
+                onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'white'}
+              >
+                <input
+                  type="checkbox"
+                  checked={task.completed}
+                  onChange={() => toggleTask(task.id)}
+                  style={{ width: '20px', height: '20px', cursor: 'pointer', accentColor: '${colors.primary}' }}
+                />
+                <span style={{ flex: 1, fontSize: '1rem', textDecoration: task.completed ? 'line-through' : 'none', color: task.completed ? '#999' : '${colors.text}' }}>
+                  {task.text}
+                </span>
+                <button
+                  onClick={() => deleteTask(task.id)}
+                  style={{ padding: '0.5rem 1rem', backgroundColor: '#ef4444', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '500' }}
+                >
+                  Delete
+                </button>
+              </div>
+            ))
+          )}
+        </div>
+
+        {/* Stats */}
+        <div style={{ marginTop: '2rem', display: 'flex', justifyContent: 'space-around', padding: '1.5rem', backgroundColor: '${colors.primary}20', borderRadius: '12px' }}>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: '2rem', fontWeight: 'bold', color: '${colors.primary}' }}>{tasks.length}</div>
+            <div style={{ fontSize: '0.875rem', color: '${colors.text}80' }}>Total Tasks</div>
+          </div>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: '2rem', fontWeight: 'bold', color: '${colors.accent}' }}>{tasks.filter(t => t.completed).length}</div>
+            <div style={{ fontSize: '0.875rem', color: '${colors.text}80' }}>Completed</div>
+          </div>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: '2rem', fontWeight: 'bold', color: '${colors.secondary}' }}>{tasks.filter(t => !t.completed).length}</div>
+            <div style={{ fontSize: '0.875rem', color: '${colors.text}80' }}>Remaining</div>
+          </div>
+        </div>
+      </main>
+
+      <footer style={{ textAlign: 'center', padding: '2rem', marginTop: '4rem', borderTop: \`1px solid ${colors.primary}30\`, color: '${colors.text}80' }}>
+        <p>Built with React • ${ideation.projectName} © 2024</p>
+      </footer>
+    </div>
+  );
+}
+
+export default App;`,
+
+    'ecommerce': `import React, { useState } from 'react';
+import './App.css';
+
+const PRODUCTS = [
+  { id: 1, name: 'Product 1', price: 29.99, category: 'Category A', image: '🎁' },
+  { id: 2, name: 'Product 2', price: 49.99, category: 'Category A', image: '📦' },
+  { id: 3, name: 'Product 3', price: 19.99, category: 'Category B', image: '🎨' },
+  { id: 4, name: 'Product 4', price: 39.99, category: 'Category B', image: '⚡' },
+  { id: 5, name: 'Product 5', price: 59.99, category: 'Category C', image: '🌟' },
+  { id: 6, name: 'Product 6', price: 24.99, category: 'Category C', image: '🎯' },
+];
+
+function App() {
+  const [cart, setCart] = useState([]);
+  const [selectedCategory, setSelectedCategory] = useState('All');
+  const [showCart, setShowCart] = useState(false);
+
+  const categories = ['All', ...new Set(PRODUCTS.map(p => p.category))];
+
+  const addToCart = (product) => {
+    const existing = cart.find(item => item.id === product.id);
+    if (existing) {
+      setCart(cart.map(item => 
+        item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
+      ));
+    } else {
+      setCart([...cart, { ...product, quantity: 1 }]);
+    }
+  };
+
+  const removeFromCart = (id) => {
+    setCart(cart.filter(item => item.id !== id));
+  };
+
+  const updateQuantity = (id, delta) => {
+    setCart(cart.map(item => {
+      if (item.id === id) {
+        const newQty = Math.max(0, item.quantity + delta);
+        return newQty === 0 ? null : { ...item, quantity: newQty };
+      }
+      return item;
+    }).filter(Boolean));
+  };
+
+  const filteredProducts = selectedCategory === 'All' 
+    ? PRODUCTS 
+    : PRODUCTS.filter(p => p.category === selectedCategory);
+
+  const cartTotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+
+  return (
+    <div style={{ minHeight: '100vh', backgroundColor: '${colors.background}', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+      {/* Header */}
+      <header style={{ background: \`linear-gradient(135deg, ${colors.primary}, ${colors.secondary})\`, padding: '1.5rem 2rem', color: 'white', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
+        <div>
+          <h1 style={{ fontSize: '2rem', fontWeight: 'bold', margin: 0 }}>${ideation.projectName}</h1>
+          <p style={{ fontSize: '0.875rem', marginTop: '0.25rem', opacity: 0.9 }}>${ideation.description}</p>
+        </div>
+        <button
+          onClick={() => setShowCart(!showCart)}
+          style={{ position: 'relative', padding: '0.75rem 1.5rem', backgroundColor: 'white', color: '${colors.primary}', border: 'none', borderRadius: '8px', fontWeight: '600', cursor: 'pointer', fontSize: '1rem' }}
+        >
+          🛒 Cart ({cart.reduce((sum, item) => sum + item.quantity, 0)})
+        </button>
+      </header>
+
+      <main style={{ maxWidth: '1200px', margin: '0 auto', padding: '2rem' }}>
+        {/* Category Filter */}
+        <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem', flexWrap: 'wrap' }}>
+          {categories.map(cat => (
+            <button
+              key={cat}
+              onClick={() => setSelectedCategory(cat)}
+              style={{
+                padding: '0.5rem 1.5rem',
+                backgroundColor: selectedCategory === cat ? '${colors.primary}' : 'white',
+                color: selectedCategory === cat ? 'white' : '${colors.text}',
+                border: \`2px solid ${colors.primary}\`,
+                borderRadius: '20px',
+                fontWeight: '600',
+                cursor: 'pointer',
+                transition: 'all 0.2s'
+              }}
+            >
+              {cat}
+            </button>
+          ))}
+        </div>
+
+        {/* Products Grid */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '1.5rem' }}>
+          {filteredProducts.map(product => (
+            <div
+              key={product.id}
+              style={{
+                backgroundColor: 'white',
+                borderRadius: '12px',
+                padding: '1.5rem',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                transition: 'transform 0.2s, box-shadow 0.2s'
+              }}
+              onMouseOver={(e) => {
+                e.currentTarget.style.transform = 'translateY(-4px)';
+                e.currentTarget.style.boxShadow = '0 8px 16px rgba(0,0,0,0.15)';
+              }}
+              onMouseOut={(e) => {
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)';
+              }}
+            >
+              <div style={{ fontSize: '4rem', textAlign: 'center', marginBottom: '1rem' }}>{product.image}</div>
+              <h3 style={{ fontSize: '1.25rem', fontWeight: '600', marginBottom: '0.5rem', color: '${colors.text}' }}>{product.name}</h3>
+              <p style={{ fontSize: '0.875rem', color: '${colors.text}80', marginBottom: '1rem' }}>{product.category}</p>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '${colors.primary}' }}>\${product.price}</span>
+                <button
+                  onClick={() => addToCart(product)}
+                  style={{ padding: '0.5rem 1rem', backgroundColor: '${colors.accent}', color: 'white', border: 'none', borderRadius: '6px', fontWeight: '600', cursor: 'pointer' }}
+                >
+                  Add to Cart
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </main>
+
+      {/* Cart Sidebar */}
+      {showCart && (
+        <div style={{ position: 'fixed', top: 0, right: 0, width: '400px', height: '100vh', backgroundColor: 'white', boxShadow: '-4px 0 20px rgba(0,0,0,0.1)', padding: '2rem', overflowY: 'auto', zIndex: 1000 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+            <h2 style={{ fontSize: '1.5rem', fontWeight: '600', margin: 0 }}>Shopping Cart</h2>
+            <button onClick={() => setShowCart(false)} style={{ fontSize: '1.5rem', background: 'none', border: 'none', cursor: 'pointer' }}>×</button>
+          </div>
+
+          {cart.length === 0 ? (
+            <p style={{ textAlign: 'center', color: '${colors.text}80', padding: '2rem' }}>Your cart is empty</p>
+          ) : (
+            <>
+              {cart.map(item => (
+                <div key={item.id} style={{ padding: '1rem', borderBottom: '1px solid #eee', display: 'flex', gap: '1rem' }}>
+                  <div style={{ fontSize: '2rem' }}>{item.image}</div>
+                  <div style={{ flex: 1 }}>
+                    <h4 style={{ margin: 0, marginBottom: '0.25rem' }}>{item.name}</h4>
+                    <p style={{ margin: 0, color: '${colors.primary}', fontWeight: '600' }}>\${item.price}</p>
+                    <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem', alignItems: 'center' }}>
+                      <button onClick={() => updateQuantity(item.id, -1)} style={{ padding: '0.25rem 0.5rem', backgroundColor: '${colors.primary}', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>-</button>
+                      <span>{item.quantity}</span>
+                      <button onClick={() => updateQuantity(item.id, 1)} style={{ padding: '0.25rem 0.5rem', backgroundColor: '${colors.primary}', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>+</button>
+                      <button onClick={() => removeFromCart(item.id)} style={{ marginLeft: 'auto', padding: '0.25rem 0.5rem', backgroundColor: '#ef4444', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Remove</button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+
+              <div style={{ marginTop: '2rem', padding: '1rem', backgroundColor: '${colors.primary}20', borderRadius: '8px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1.25rem', fontWeight: 'bold', color: '${colors.primary}' }}>
+                  <span>Total:</span>
+                  <span>\${cartTotal.toFixed(2)}</span>
+                </div>
+              </div>
+
+              <button style={{ width: '100%', marginTop: '1rem', padding: '1rem', backgroundColor: '${colors.accent}', color: 'white', border: 'none', borderRadius: '8px', fontWeight: '600', fontSize: '1rem', cursor: 'pointer' }}>
+                Proceed to Checkout
+              </button>
+            </>
+          )}
+        </div>
+      )}
+
+      {showCart && <div onClick={() => setShowCart(false)} style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 999 }} />}
+    </div>
+  );
+}
+
+export default App;`,
+
+    // Add more templates for other app types...
+    'general-app': generateGeneralApp(ideation, colors)
+  };
+
+  return templates[appType] || templates['general-app'];
+}
+
+// Generate Components
+function generateComponents(ideation, colors, appType) {
+  const components = [
+    {
+      name: "Header.jsx",
+      type: "file",
+      content: `import React from 'react';
+
+function Header({ title, subtitle }) {
+  return (
+    <header style={{
+      background: \`linear-gradient(135deg, ${colors.primary}, ${colors.secondary})\`,
+      padding: '2rem',
+      color: 'white',
+      boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
+    }}>
+      <h1 style={{ fontSize: '2.5rem', fontWeight: 'bold', margin: 0 }}>
+        {title || '${ideation.projectName}'}
+      </h1>
+      <p style={{ fontSize: '1.125rem', marginTop: '0.5rem', opacity: 0.9 }}>
+        {subtitle || '${ideation.description}'}
+      </p>
+    </header>
+  );
+}
+
+export default Header;`
+    },
+    {
+      name: "Footer.jsx",
+      type: "file",
+      content: `import React from 'react';
+
+function Footer() {
+  return (
+    <footer style={{
+      textAlign: 'center',
+      padding: '2rem',
+      marginTop: '4rem',
+      borderTop: '1px solid ${colors.primary}30',
+      color: '${colors.text}80'
+    }}>
+      <p>Built with React • ${ideation.projectName} © 2024</p>
+    </footer>
+  );
+}
+
+export default Footer;`
+    }
+  ];
+
+  // Add app-specific components
+  if (appType === 'task-manager') {
+    components.push({
+      name: "TaskItem.jsx",
+      type: "file",
+      content: `import React from 'react';
+
+function TaskItem({ task, onToggle, onDelete }) {
+  return (
+    <div style={{
+      padding: '1rem 1.5rem',
+      borderBottom: '1px solid #eee',
+      display: 'flex',
+      alignItems: 'center',
+      gap: '1rem',
+      transition: 'background-color 0.2s'
+    }}>
+      <input
+        type="checkbox"
+        checked={task.completed}
+        onChange={() => onToggle(task.id)}
+        style={{ width: '20px', height: '20px', cursor: 'pointer' }}
+      />
+      <span style={{
+        flex: 1,
+        textDecoration: task.completed ? 'line-through' : 'none',
+        color: task.completed ? '#999' : 'inherit'
+      }}>
+        {task.text}
+      </span>
+      <button
+        onClick={() => onDelete(task.id)}
+        style={{
+          padding: '0.5rem 1rem',
+          backgroundColor: '#ef4444',
+          color: 'white',
+          border: 'none',
+          borderRadius: '6px',
+          cursor: 'pointer'
+        }}
+      >
+        Delete
+      </button>
+    </div>
+  );
+}
+
+export default TaskItem;`
+    });
+  }
+
+  return components;
+}
+
+// Generate Pages
+function generatePages(ideation, colors, appType) {
+  return [
+    {
+      name: "Home.jsx",
+      type: "file",
+      content: `import React from 'react';
+
+function Home() {
+  return (
+    <div style={{ padding: '2rem' }}>
+      <h1 style={{ fontSize: '2.5rem', fontWeight: 'bold', color: '${colors.primary}', marginBottom: '1rem' }}>
+        Welcome to ${ideation.projectName}
+      </h1>
+      <p style={{ fontSize: '1.125rem', color: '${colors.text}', lineHeight: '1.6' }}>
+        ${ideation.description}
+      </p>
+      
+      <div style={{
+        marginTop: '3rem',
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
+        gap: '2rem'
+      }}>
+        ${ideation.features.map((feature, idx) => `
+        <div style={{
+          padding: '2rem',
+          backgroundColor: 'white',
+          borderRadius: '12px',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+          border: '2px solid ${colors.primary}30'
+        }}>
+          <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>
+            ${['🚀', '⚡', '🎨', '✨'][idx % 4]}
+          </div>
+          <h3 style={{ fontSize: '1.25rem', fontWeight: '600', marginBottom: '0.5rem', color: '${colors.primary}' }}>
+            ${feature}
+          </h3>
+          <p style={{ color: '${colors.text}80', fontSize: '0.875rem' }}>
+            Explore this feature to see what it can do.
+          </p>
+        </div>
+        `).join('')}
+      </div>
+    </div>
+  );
+}
+
+export default Home;`
+    }
+  ];
+}
+
+// Generate CSS files
+function generateAppCSS(colors) {
+  return `/* ${colors.primary} App Styles */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: ${colors.background};
+  color: ${colors.text};
+}
+
+button {
+  font-family: inherit;
+  transition: all 0.2s ease;
+}
+
+button:hover {
+  transform: scale(1.02);
+}
+
+button:active {
+  transform: scale(0.98);
+}
+
+input, textarea {
+  font-family: inherit;
+}
+
+input:focus, textarea:focus {
+  outline: none;
+  border-color: ${colors.primary};
+  box-shadow: 0 0 0 3px ${colors.primary}20;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+::-webkit-scrollbar-thumb {
+  background: ${colors.primary};
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: ${colors.secondary};
+}`;
+}
+
+function generateIndexCSS(colors) {
+  return `@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+:root {
+  --primary: ${colors.primary};
+  --secondary: ${colors.secondary};
+  --accent: ${colors.accent};
+  --background: ${colors.background};
+  --text: ${colors.text};
+}
+
+body {
+  margin: 0;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background-color: var(--background);
+  color: var(--text);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+#root {
+  min-height: 100vh;
+}`;
+}
+
+function generateREADME(ideation) {
+  return `# ${ideation.projectName}
+
+${ideation.description}
+
+## ✨ Features
+
+${ideation.features.map((f, i) => `${i + 1}. ${f}`).join('\n')}
+
+## 🚀 Tech Stack
+
+**Frontend:** ${ideation.techStack.frontend.join(', ')}
+
+**Backend:** ${ideation.techStack.backend.join(', ')}
+
+${ideation.techStack.database?.length > 0 ? `**Database:** ${ideation.techStack.database.join(', ')}` : ''}
+
+## 🎨 Color Scheme
+
+- **Primary:** ${ideation.colorScheme.primary}
+- **Secondary:** ${ideation.colorScheme.secondary}
+- **Accent:** ${ideation.colorScheme.accent}
+- **Background:** ${ideation.colorScheme.background}
+- **Text:** ${ideation.colorScheme.text}
+
+## 📦 Getting Started
+
+\`\`\`bash
+# Install dependencies
+npm install
+
+# Start development server
+npm start
+\`\`\`
+
+The app will open at http://localhost:3000
+
+## 🎯 Target Audience
+
+${ideation.targetAudience}
+
+## 💡 Unique Selling Point
+
+${ideation.uniqueSellingPoint}
+
+## 📝 User Flow
+
+${ideation.userFlow.map((step, i) => `${i + 1}. ${step}`).join('\n')}
+
+## 🛠️ Development
+
+This is a functional React application with:
+- State management using React hooks
+- Interactive UI components
+- Responsive design
+- Modern styling with inline styles
+
+## 📄 License
+
+MIT License
+
+---
+
+*Generated by AI Multi-Agent SDLC Platform*
+`;
+}
+
+// Generate a general functional app
+function generateGeneralApp(ideation, colors) {
+  return `import React, { useState } from 'react';
+import './App.css';
+
+function App() {
+  const [activeSection, setActiveSection] = useState(0);
+  const [formData, setFormData] = useState({});
+
+  const features = ${JSON.stringify(ideation.features)};
+
+  return (
+    <div style={{ minHeight: '100vh', backgroundColor: '${colors.background}', color: '${colors.text}', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+      {/* Header */}
+      <header style={{ background: \`linear-gradient(135deg, ${colors.primary}, ${colors.secondary})\`, padding: '2rem', color: 'white', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
+        <h1 style={{ fontSize: '2.5rem', fontWeight: 'bold', margin: 0 }}>${ideation.projectName}</h1>
+        <p style={{ fontSize: '1.125rem', marginTop: '0.5rem', opacity: 0.9 }}>${ideation.description}</p>
+      </header>
+
+      {/* Navigation */}
+      <nav style={{ backgroundColor: 'white', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', position: 'sticky', top: 0, zIndex: 100 }}>
+        <div style={{ maxWidth: '1200px', margin: '0 auto', display: 'flex', gap: '0', overflowX: 'auto' }}>
+          {features.map((feature, idx) => (
+            <button
+              key={idx}
+              onClick={() => setActiveSection(idx)}
+              style={{
+                padding: '1rem 2rem',
+                backgroundColor: activeSection === idx ? '${colors.primary}' : 'transparent',
+                color: activeSection === idx ? 'white' : '${colors.text}',
+                border: 'none',
+                borderBottom: activeSection === idx ? \`3px solid ${colors.accent}\` : '3px solid transparent',
+                fontWeight: '600',
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+                whiteSpace: 'nowrap'
+              }}
+            >
+              {feature.split(' ').slice(0, 3).join(' ')}
+            </button>
+          ))}
+        </div>
+      </nav>
+
+      {/* Main Content */}
+      <main style={{ maxWidth: '1200px', margin: '0 auto', padding: '3rem 2rem' }}>
+        <div style={{ backgroundColor: 'white', borderRadius: '16px', padding: '2rem', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
+          <h2 style={{ fontSize: '2rem', fontWeight: '600', marginBottom: '1.5rem', color: '${colors.primary}' }}>
+            {features[activeSection]}
+          </h2>
+          
+          {/* Interactive Content Area */}
+          <div style={{ minHeight: '400px' }}>
+            <p style={{ color: '${colors.text}80', marginBottom: '2rem', lineHeight: '1.6' }}>
+              This is a functional section for "{features[activeSection]}". 
+              Add your specific implementation here with forms, displays, or interactions.
+            </p>
+
+            {/* Example Interactive Elements */}
+            <div style={{ display: 'grid', gap: '1rem', marginBottom: '2rem' }}>
+              <input
+                type="text"
+                placeholder="Enter data..."
+                onChange={(e) => setFormData({ ...formData, [\`field\${activeSection}\`]: e.target.value })}
+                style={{ padding: '0.75rem 1rem', fontSize: '1rem', border: \`2px solid ${colors.primary}30\`, borderRadius: '8px', outline: 'none' }}
+              />
+              <button
+                onClick={() => alert('Feature in action: ' + features[activeSection])}
+                style={{ padding: '0.75rem 2rem', backgroundColor: '${colors.accent}', color: 'white', border: 'none', borderRadius: '8px', fontWeight: '600', cursor: 'pointer', fontSize: '1rem' }}
+              >
+                Take Action
+              </button>
+            </div>
+
+            {/* Feature-specific content */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.5rem', marginTop: '2rem' }}>
+              {[1, 2, 3].map(item => (
+                <div
+                  key={item}
+                  style={{
+                    padding: '1.5rem',
+                    backgroundColor: '${colors.primary}10',
+                    borderRadius: '12px',
+                    border: \`2px solid ${colors.primary}30\`,
+                    transition: 'transform 0.2s'
+                  }}
+                  onMouseOver={(e) => e.currentTarget.style.transform = 'translateY(-4px)'}
+                  onMouseOut={(e) => e.currentTarget.style.transform = 'translateY(0)'}
+                >
+                  <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>
+                    {['📊', '⚡', '🎯'][item - 1]}
+                  </div>
+                  <h4 style={{ fontSize: '1.125rem', fontWeight: '600', marginBottom: '0.5rem' }}>
+                    Item {item}
+                  </h4>
+                  <p style={{ fontSize: '0.875rem', color: '${colors.text}80' }}>
+                    Interactive element for this feature
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </main>
+
+      {/* Footer */}
+      <footer style={{ textAlign: 'center', padding: '2rem', marginTop: '4rem', borderTop: \`1px solid ${colors.primary}30\`, color: '${colors.text}80' }}>
+        <p>Built with React • ${ideation.projectName} © 2024</p>
+      </footer>
+    </div>
+  );
+}
+
+export default App;`;
+}
+
+// Continue with other helper functions...
+// (generateComponents, generatePages, etc. - would you like me to continue with these?)
 
   const handleGenerateIdeation = async () => {
     if (!prompt.trim()) {
