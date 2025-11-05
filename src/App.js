@@ -11,6 +11,8 @@ import { useDocumentationAgent, DocumentationModal } from './hooks/useDocumentat
 import { useTestingAgent, TestingModal } from './hooks/useTestingAgent';
 import TestingAgentViewer from './components/TestingAgentViewer';
 import { CheckCircle } from 'lucide-react';
+import Dashboard from './components/Dashboard';
+import { createProject, getProject, updateProject } from './services/projectService';
 
 //ADD YOUR GEMINI API KEY HERE
 const GEMINI_API_KEY = process.env.REACT_APP_GEMINI_API_KEY || 'your-gemini-api-key-here';
@@ -540,6 +542,7 @@ function AppContent() {
   const [animateFeatures, setAnimateFeatures] = useState([]);
   const [isSignUp, setIsSignUp] = useState(false);
   const [showUserProfile, setShowUserProfile] = useState(false);
+  const [currentProject, setCurrentProject] = useState(null);
 
   // Documentation Agent States
   const [showDocModal, setShowDocModal] = useState(false);
@@ -1907,6 +1910,22 @@ export default App;`;
       setIdeation(ideationData);
       setCurrentView('ideation');
       setShowIdeation(false);
+
+      if (!currentProject) {
+        const { success, projectId } = await createProject(currentUser.uid, {
+          name: ideationData.projectName,
+          description: ideationData.description,
+          ideation: ideationData,
+          techStack: ideationData.techStack,
+          status: 'draft'
+        });
+        
+        if (success) {
+          setCurrentProject({ id: projectId });
+        }
+      }
+      
+      setCurrentView('ideation');
       
       setTimeout(() => {
         setShowIdeation(true);
@@ -1919,6 +1938,8 @@ export default App;`;
     } else {
       setCurrentView('prompt');
     }
+
+
   };
 
   const handlePrototype = async () => {
@@ -1927,6 +1948,13 @@ export default App;`;
     
     if (files) {
       setGeneratedFiles(files);
+
+      if (currentProject?.id) {
+        await updateProject(currentProject.id, {
+          fileStructure: files,
+          status: 'in-progress'
+        });
+      }
       
       // Generate documentation automatically
       try {
@@ -2045,7 +2073,7 @@ export default App;`;
 
   const handleLoginSuccess = (user) => {
     console.log('Login successful:', user);
-    setCurrentView('prompt');
+    setCurrentView('dashboard'); // Changed from 'prompt'
   };
 
   const handleLogout = () => {
@@ -2080,6 +2108,32 @@ export default App;`;
       </div>
     );
   }
+  // Add after authentication check, before "Transition to Dashboard":
+if (currentView === 'dashboard') {
+  return (
+    <Dashboard 
+      onNewProject={() => {
+        setCurrentView('prompt');
+        setCurrentProject(null);
+        setPrompt('');
+        setIdeation(null);
+        setGeneratedFiles(null);
+      }}
+      onOpenProject={async (project) => {
+        setCurrentProject(project);
+        if (project.ideation) {
+          setIdeation(project.ideation);
+          setCurrentView('ideation');
+        }
+        if (project.fileStructure) {
+          setGeneratedFiles(project.fileStructure);
+          setCurrentView('editor');
+        }
+      }}
+      onLogout={handleLogout}
+    />
+  );
+}
 
   // Transition to Dashboard
   if (currentView === 'transition-to-dashboard') {
