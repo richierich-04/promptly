@@ -831,16 +831,29 @@ const VSCodeFileExplorer = ({ generatedFiles }) => {
       return (
         <div key={currentPath}>
           <div
-            className={`flex items-center gap-1 px-2 py-1 cursor-pointer hover:bg-gray-700 group ${
-              isSelected ? 'bg-gray-700' : ''
+            className={`vscode-folder-hover group flex items-center gap-2 px-2 py-1 cursor-pointer rounded-md border border-transparent transition-all duration-200 ${
+              isSelected
+                ? 'bg-purple-600/20 border-purple-500/40'
+                : 'hover:bg-white/5 hover:border-white/10'
             }`}
             onClick={() => toggleFolder(currentPath)}
           >
-            {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-            {isExpanded ? <FolderOpen size={16} className="text-blue-400" /> : <Folder size={16} className="text-blue-400" />}
+            {isExpanded ? (
+              <ChevronDown size={16} className="text-purple-400" />
+            ) : (
+              <ChevronRight size={16} className="text-purple-400" />
+            )}
+    
+            {isExpanded ? (
+              <FolderOpen size={16} className="text-blue-400" />
+            ) : (
+              <Folder size={16} className="text-blue-400" />
+            )}
+    
             <span className="text-sm">{node.name}</span>
+    
             <button
-              className="ml-auto opacity-0 group-hover:opacity-100"
+              className="ml-auto opacity-0 group-hover:opacity-100 hover:text-green-400"
               onClick={(e) => {
                 e.stopPropagation();
                 setShowNewFileInput(currentPath);
@@ -850,7 +863,7 @@ const VSCodeFileExplorer = ({ generatedFiles }) => {
               <Plus size={14} />
             </button>
           </div>
-          
+    
           {showNewFileInput === currentPath && (
             <div className="flex items-center gap-2 px-2 py-1 ml-6">
               <select
@@ -881,20 +894,21 @@ const VSCodeFileExplorer = ({ generatedFiles }) => {
               </button>
             </div>
           )}
-          
+    
           {isExpanded && node.children && (
             <div className="ml-4">
-              {node.children.map(child => renderTree(child, currentPath))}
+              {node.children.map((child) => renderTree(child, currentPath))}
             </div>
           )}
         </div>
       );
     }
+    
 
     return (
       <div
         key={currentPath}
-        className={`flex items-center gap-1 px-2 py-1 ml-6 cursor-pointer hover:bg-gray-700 ${
+        className={`vscode-file-hover flex items-center gap-1 px-2 py-1 ml-6 cursor-pointer hover:bg-white/5 ${
           isSelected ? 'bg-gray-700' : ''
         }`}
         onClick={() => openFile(currentPath, node)}
@@ -910,283 +924,325 @@ const VSCodeFileExplorer = ({ generatedFiles }) => {
   const currentLanguage = activeTab ? getLanguageFromFileName(currentFileName) : 'plaintext';
 
   return (
-    <div className="flex h-screen bg-gray-900 text-white">
-      {/* Sidebar */}
-      <div className="w-64 bg-gray-800 border-r border-gray-700 overflow-y-auto">
-        <div className="p-2 border-b border-gray-700 flex items-center justify-between">
-          <span className="text-xs font-semibold uppercase text-gray-400">Explorer</span>
-          <button
-            onClick={() => {
-              setShowNewFileInput('project-root');
-              setNewItemType('file');
-            }}
-            className="hover:bg-gray-700 p-1 rounded"
-          >
-            <Plus size={16} />
-          </button>
+    <div className="flex h-screen text-white relative bg-[#080b18] overflow-hidden">
+      {/* Ambient glow lights */}
+      <div className="absolute inset-0 pointer-events-none">
+        <div className="absolute top-[-10%] right-[10%] w-[400px] h-[400px] bg-purple-500/20 blur-[180px]" />
+        <div className="absolute bottom-[0%] left-[10%] w-[350px] h-[350px] bg-blue-500/20 blur-[160px]" />
+      </div>
+  
+      {/* MAIN WRAPPER (Everything else sits inside this) */}
+      <div className="relative z-10 flex w-full">
+        {/* Sidebar */}
+        <div className="w-64 bg-white/5 backdrop-blur-xl border-r border-white/10 overflow-y-auto shadow-[inset_0_0_20px_rgba(255,255,255,0.06)]">
+          <div className="p-2 border-b border-gray-700 flex items-center justify-between">
+            <span className="text-xs font-semibold uppercase text-gray-400">Explorer</span>
+            <button
+              onClick={() => {
+                setShowNewFileInput('project-root');
+                setNewItemType('file');
+              }}
+              className="hover:bg-gray-700 p-1 rounded"
+            >
+              <Plus size={16} />
+            </button>
+          </div>
+          <div className="py-2">
+            {fileSystem ? renderTree(fileSystem) : (
+              <div className="text-sm text-gray-400 p-2">No files loaded</div>
+            )}
+          </div>
         </div>
-        <div className="py-2">
-          {renderTree(fileSystem)}
+  
+        {/* Main Content */}
+        <div className="flex-1 flex flex-col">
+          {/* Tabs */}
+          <div className="flex bg-white/5 backdrop-blur-xl border-b border-white/10 overflow-x-auto">
+            {openTabs.length === 0 ? (
+              <div className="px-4 py-2 text-sm text-gray-500">No files open</div>
+            ) : (
+              openTabs.map((tab) => {
+                const tabErrors = fileErrors[tab] || [];
+                const hasTabErrors = tabErrors.length > 0;
+  
+                return (
+                  <div
+                    key={tab}
+                    className={`flex items-center gap-2 px-4 py-2 border-r border-gray-700 cursor-pointer ${
+                      activeTab === tab
+                        ? 'bg-purple-600/30 border-b-2 border-purple-400 text-white'
+                        : 'hover:bg-white/10 text-gray-300'
+                    }`}
+                    onClick={() => setActiveTab(tab)}
+                  >
+                    <File size={14} className={hasTabErrors ? 'text-red-400' : ''} />
+                    <span className="text-sm">{tab.split('/').pop()}</span>
+                    {hasTabErrors && <AlertCircle size={12} className="text-red-400" />}
+                    <button
+                      onClick={(e) => closeTab(tab, e)}
+                      className="hover:bg-gray-600 rounded p-0.5"
+                    >
+                      <X size={12} />
+                    </button>
+                  </div>
+                );
+              })
+            )}
+          </div>
+  
+          {/* View Toggle Buttons */}
+<div className="flex items-center justify-between bg-gray-800 border-b border-gray-700 px-4 py-2">
+  {/* Left: Editor View Toggles */}
+  <div className="flex gap-2">
+    <button
+      onClick={() => setCurrentView('editor')}
+      className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-all ${
+        currentView === 'editor'
+          ? 'bg-gradient-to-r from-purple-500/40 to-cyan-500/40 text-white border border-white/20 shadow-lg shadow-purple-500/20'
+          : 'bg-white/5 text-gray-300 hover:bg-white/10'
+      }`}
+    >
+      <Code size={16} />
+      <span className="text-sm">Code</span>
+    </button>
+
+    <button
+      onClick={() => setCurrentView('preview')}
+      className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-all ${
+        currentView === 'preview'
+          ? 'bg-gradient-to-r from-purple-500/40 to-cyan-500/40 text-white border border-white/20 shadow-lg shadow-purple-500/20'
+          : 'bg-white/5 text-gray-300 hover:bg-white/10'
+      }`}
+    >
+      <Eye size={16} />
+      <span className="text-sm">Preview</span>
+    </button>
+
+    <button
+      onClick={() => setCurrentView('split')}
+      className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-all ${
+        currentView === 'split'
+          ? 'bg-gradient-to-r from-purple-500/40 to-cyan-500/40 text-white border border-white/20 shadow-lg shadow-purple-500/20'
+          : 'bg-white/5 text-gray-300 hover:bg-white/10'
+      }`}
+    >
+      <Columns size={16} />
+      <span className="text-sm">Split</span>
+    </button>
+  </div>
+</div>
+
+{/* Content Area */}
+<div
+  className="flex-1 overflow-hidden"
+  style={{ height: showTerminal ? `calc(100% - ${terminalHeight}px)` : '100%' }}
+>
+  {currentView === 'editor' && (
+    activeTab ? (
+      <div className="h-full flex flex-col">
+        {currentErrors.length > 0 && (
+          <div className="bg-red-900 bg-opacity-20 border-b border-red-700 px-4 py-2">
+            <div className="flex items-center gap-2 text-red-400 text-sm">
+              <AlertCircle size={16} />
+              <span>
+                {currentErrors.length} error
+                {currentErrors.length > 1 ? 's' : ''} found
+              </span>
+            </div>
+          </div>
+        )}
+        <Editor
+          height="100%"
+          language={currentLanguage}
+          value={fileContents[activeTab] || ''}
+          onChange={handleEditorChange}
+          onMount={handleEditorDidMount}
+          theme="vscode-dark"
+          loading={
+            <div className="flex items-center justify-center h-full">
+              Loading editor...
+            </div>
+          }
+          options={{
+            fontSize: 14,
+            minimap: { enabled: true },
+            scrollBeyondLastLine: false,
+            automaticLayout: true,
+            tabSize: 2,
+            wordWrap: 'on',
+            formatOnPaste: true,
+            formatOnType: true,
+            quickSuggestions: true,
+            suggestOnTriggerCharacters: true,
+          }}
+        />
+      </div>
+    ) : (
+      <div className="flex items-center justify-center h-full text-gray-500">
+        <div className="text-center">
+          <File size={48} className="mx-auto mb-4 opacity-50" />
+          <p>Select a file to start editing</p>
         </div>
       </div>
+    )
+  )}
 
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col">
-        {/* Tabs */}
-        <div className="flex bg-gray-800 border-b border-gray-700 overflow-x-auto">
-          {openTabs.length === 0 ? (
-            <div className="px-4 py-2 text-sm text-gray-500">No files open</div>
-          ) : (
-            openTabs.map(tab => {
-              const tabErrors = fileErrors[tab] || [];
-              const hasTabErrors = tabErrors.length > 0;
-              
-              return (
-                <div
-                  key={tab}
-                  className={`flex items-center gap-2 px-4 py-2 border-r border-gray-700 cursor-pointer ${
-                    activeTab === tab ? 'bg-gray-900' : 'hover:bg-gray-700'
-                  }`}
-                  onClick={() => setActiveTab(tab)}
-                >
-                  <File size={14} className={hasTabErrors ? "text-red-400" : ""} />
-                  <span className="text-sm">{tab.split('/').pop()}</span>
-                  {hasTabErrors && <AlertCircle size={12} className="text-red-400" />}
-                  <button
-                    onClick={(e) => closeTab(tab, e)}
-                    className="hover:bg-gray-600 rounded p-0.5"
-                  >
-                    <X size={12} />
-                  </button>
-                </div>
-              );
-            })
-          )}
-        </div>
+  {currentView === 'preview' && (
+    <LivePreview fileSystem={fileSystem} activeFile={activeTab} />
+  )}
 
-        {/* View Toggle Buttons */}
-        <div className="flex bg-gray-800 border-b border-gray-700 px-4 py-2 gap-2">
-          <button
-            onClick={() => setCurrentView('editor')}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded transition-colors ${
-              currentView === 'editor' 
-                ? 'bg-blue-600 text-white' 
-                : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-            }`}
-          >
-            <Code size={16} />
-            <span className="text-sm">Code</span>
-          </button>
-          
-          <button
-            onClick={() => setCurrentView('preview')}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded transition-colors ${
-              currentView === 'preview' 
-                ? 'bg-blue-600 text-white' 
-                : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-            }`}
-          >
-            <Eye size={16} />
-            <span className="text-sm">Preview</span>
-          </button>
-          
-          <button
-            onClick={() => setCurrentView('split')}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded transition-colors ${
-              currentView === 'split' 
-                ? 'bg-blue-600 text-white' 
-                : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-            }`}
-          >
-            <Columns size={16} />
-            <span className="text-sm">Split</span>
-          </button>
-        </div>
-
-        {/* Content Area */}
-        <div className="flex-1 overflow-hidden" style={{ height: showTerminal ? `calc(100% - ${terminalHeight}px)` : '100%' }}>
-          {currentView === 'editor' && (
-            activeTab ? (
-              <div className="h-full flex flex-col">
-                {currentErrors.length > 0 && (
-                  <div className="bg-red-900 bg-opacity-20 border-b border-red-700 px-4 py-2">
-                    <div className="flex items-center gap-2 text-red-400 text-sm">
-                      <AlertCircle size={16} />
-                      <span>{currentErrors.length} error{currentErrors.length > 1 ? 's' : ''} found</span>
-                    </div>
-                  </div>
-                )}
-                <Editor
-                  height="100%"
-                  language={currentLanguage}
-                  value={fileContents[activeTab] || ''}
-                  onChange={handleEditorChange}
-                  onMount={handleEditorDidMount}
-                  theme="vscode-dark"
-                  loading={<div className="flex items-center justify-center h-full">Loading editor...</div>}
-                  options={{
-                    fontSize: 14,
-                    minimap: { enabled: true },
-                    scrollBeyondLastLine: false,
-                    automaticLayout: true,
-                    tabSize: 2,
-                    wordWrap: 'on',
-                    formatOnPaste: true,
-                    formatOnType: true,
-                    quickSuggestions: true,
-                    suggestOnTriggerCharacters: true,
-                  }}
-                />
-              </div>
-            ) : (
-              <div className="flex items-center justify-center h-full text-gray-500">
-                <div className="text-center">
-                  <File size={48} className="mx-auto mb-4 opacity-50" />
-                  <p>Select a file to start editing</p>
+  {currentView === 'split' && (
+    <div className="flex h-full">
+      <div className="flex-1 border-r border-gray-700">
+        {activeTab ? (
+          <div className="h-full flex flex-col">
+            {currentErrors.length > 0 && (
+              <div className="bg-red-900 bg-opacity-20 border-b border-red-700 px-4 py-2">
+                <div className="flex items-center gap-2 text-red-400 text-sm">
+                  <AlertCircle size={16} />
+                  <span>
+                    {currentErrors.length} error
+                    {currentErrors.length > 1 ? 's' : ''} found
+                  </span>
                 </div>
               </div>
-            )
-          )}
-          
-          {currentView === 'preview' && (
-            <LivePreview fileSystem={fileSystem} activeFile={activeTab} />
-          )}
-          
-          {currentView === 'split' && (
-            <div className="flex h-full">
-              <div className="flex-1 border-r border-gray-700">
-                {activeTab ? (
-                  <div className="h-full flex flex-col">
-                    {currentErrors.length > 0 && (
-                      <div className="bg-red-900 bg-opacity-20 border-b border-red-700 px-4 py-2">
-                        <div className="flex items-center gap-2 text-red-400 text-sm">
-                          <AlertCircle size={16} />
-                          <span>{currentErrors.length} error{currentErrors.length > 1 ? 's' : ''} found</span>
-                        </div>
-                      </div>
-                    )}
-                    <Editor
-                      height="100%"
-                      language={currentLanguage}
-                      value={fileContents[activeTab] || ''}
-                      onChange={handleEditorChange}
-                      onMount={handleEditorDidMount}
-                      theme="vscode-dark"
-                      loading={<div className="flex items-center justify-center h-full">Loading editor...</div>}
-                      options={{
-                        fontSize: 14,
-                        minimap: { enabled: false },
-                        scrollBeyondLastLine: false,
-                        automaticLayout: true,
-                        tabSize: 2,
-                        wordWrap: 'on',
-                        formatOnPaste: true,
-                        formatOnType: true,
-                      }}
-                    />
-                  </div>
-                ) : (
-                  <div className="flex items-center justify-center h-full text-gray-500">
-                    <p>Select a file to edit</p>
-                  </div>
-                )}
-              </div>
-              <div className="flex-1">
-                <LivePreview fileSystem={fileSystem} activeFile={activeTab} />
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Terminal */}
-        {showTerminal && (
-          <>
-            <div
-              className="h-1 bg-gray-700 cursor-row-resize hover:bg-blue-500 transition-colors"
-              onMouseDown={handleMouseDown}
+            )}
+            <Editor
+              height="100%"
+              language={currentLanguage}
+              value={fileContents[activeTab] || ''}
+              onChange={handleEditorChange}
+              onMount={handleEditorDidMount}
+              theme="vscode-dark"
+              loading={
+                <div className="flex items-center justify-center h-full">
+                  Loading editor...
+                </div>
+              }
+              options={{
+                fontSize: 14,
+                minimap: { enabled: false },
+                scrollBeyondLastLine: false,
+                automaticLayout: true,
+                tabSize: 2,
+                wordWrap: 'on',
+                formatOnPaste: true,
+                formatOnType: true,
+              }}
             />
-            <div className="bg-gray-900 border-t border-gray-700 flex flex-col" style={{ height: `${terminalHeight}px` }}>
-              <div className="flex items-center justify-between px-3 py-1 bg-gray-800 border-b border-gray-700">
-                <div className="flex items-center gap-2">
-                  <TerminalIcon size={14} />
-                  <span className="text-xs font-semibold">Terminal</span>
-                  <span className="text-xs text-gray-400">{currentDirectory}</span>
-                  {Object.values(fileErrors).flat().length > 0 && (
-                    <span className="text-xs text-red-400 flex items-center gap-1">
-                      <AlertCircle size={12} />
-                      {Object.values(fileErrors).flat().length} errors
-                    </span>
-                  )}
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={refreshFileSystem}
-                    className="hover:bg-gray-700 p-1 rounded flex items-center gap-1"
-                    title="Refresh Files"
-                  >
-                    <RefreshCw size={14} />
-                  </button>
-                  <button
-                    onClick={() => setShowTerminal(false)}
-                    className="hover:bg-gray-700 p-1 rounded"
-                  >
-                    <X size={14} />
-                  </button>
-                </div>
-              </div>
-              <div
-                ref={terminalOutputRef}
-                className="flex-1 overflow-y-auto px-3 py-2 font-mono text-sm text-left"
-              >
-                {terminalOutput.map((line, idx) => (
-                  <div
-                    key={idx}
-                    className={`text-left whitespace-pre-wrap break-words ${
-                      line.type === 'error' ? 'text-red-400' :
-                      line.type === 'command' ? 'text-green-400' :
-                      line.type === 'info' ? 'text-blue-400' :
-                      line.type === 'success' ? 'text-green-300' :
-                      'text-gray-300'
-                    }`}
-                  >
-                    {line.text}
-                  </div>
-                ))}
-                {isExecuting && (
-                  <div className="text-yellow-400 text-left">Executing...</div>
-                )}
-              </div>
-              <div className="flex items-center px-3 py-2 bg-gray-800 border-t border-gray-700">
-                <span className="text-green-400 mr-2">$</span>
-                <input
-                  ref={terminalInputRef}
-                  type="text"
-                  value={terminalInput}
-                  onChange={(e) => setTerminalInput(e.target.value)}
-                  onKeyDown={handleTerminalKeyDown}
-                  className="flex-1 bg-transparent outline-none text-sm font-mono"
-                  placeholder="Type 'help' for commands or 'errors' to see all errors..."
-                  disabled={isExecuting}
-                  autoFocus
-                />
-              </div>
-            </div>
-          </>
+          </div>
+        ) : (
+          <div className="flex items-center justify-center h-full text-gray-500">
+            <p>Select a file to edit</p>
+          </div>
         )}
-
-        {/* Floating Terminal Toggle */}
-        {!showTerminal && (
-          <button
-            onClick={() => setShowTerminal(true)}
-            className="fixed bottom-4 right-4 bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-full shadow-lg transition-colors"
-            title="Open Terminal"
-          >
-            <TerminalIcon size={20} />
-          </button>
-        )}
+      </div>
+      <div className="flex-1">
+        <LivePreview fileSystem={fileSystem} activeFile={activeTab} />
       </div>
     </div>
-  );
+  )}
+</div>
+
+{/* Terminal Section */}
+{showTerminal && (
+  <>
+    <div
+      className="h-1 bg-gray-700 cursor-row-resize hover:bg-blue-500 transition-colors"
+      onMouseDown={handleMouseDown}
+    />
+    <div
+      className="bg-[#0A0E2A]/90 backdrop-blur-xl border-t border-white/10 flex flex-col shadow-[0_0_25px_rgba(99,102,241,0.2)]"
+      style={{ height: `${terminalHeight}px` }}
+    >
+      <div className="flex items-center justify-between px-3 py-1 bg-gray-800 border-b border-gray-700">
+        <div className="flex items-center gap-2">
+          <TerminalIcon size={14} />
+          <span className="text-xs font-semibold">Terminal</span>
+          <span className="text-xs text-gray-400">{currentDirectory}</span>
+          {Object.values(fileErrors).flat().length > 0 && (
+            <span className="text-xs text-red-400 flex items-center gap-1">
+              <AlertCircle size={12} />
+              {Object.values(fileErrors).flat().length} errors
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={refreshFileSystem}
+            className="hover:bg-gray-700 p-1 rounded flex items-center gap-1"
+            title="Refresh Files"
+          >
+            <RefreshCw size={14} />
+          </button>
+          <button
+            onClick={() => setShowTerminal(false)}
+            className="hover:bg-gray-700 p-1 rounded"
+          >
+            <X size={14} />
+          </button>
+        </div>
+      </div>
+
+      <div
+        ref={terminalOutputRef}
+        className="flex-1 overflow-y-auto px-3 py-2 font-mono text-sm text-left"
+      >
+        {terminalOutput.map((line, idx) => (
+          <div
+            key={idx}
+            className={`text-left whitespace-pre-wrap break-words ${
+              line.type === 'error'
+                ? 'text-red-400'
+                : line.type === 'command'
+                ? 'text-green-400'
+                : line.type === 'info'
+                ? 'text-blue-400'
+                : line.type === 'success'
+                ? 'text-green-300'
+                : 'text-gray-300'
+            }`}
+          >
+            {line.text}
+          </div>
+        ))}
+        {isExecuting && (
+          <div className="text-yellow-400 text-left">Executing...</div>
+        )}
+      </div>
+
+      <div className="flex items-center px-3 py-2 bg-gray-800 border-t border-gray-700">
+        <span className="text-green-400 mr-2">$</span>
+        <input
+          ref={terminalInputRef}
+          type="text"
+          value={terminalInput}
+          onChange={(e) => setTerminalInput(e.target.value)}
+          onKeyDown={handleTerminalKeyDown}
+          className="flex-1 bg-transparent outline-none text-sm font-mono"
+          placeholder="Type 'help' for commands or 'errors' to see all errors..."
+          disabled={isExecuting}
+          autoFocus
+        />
+      </div>
+    </div>
+  </>
+)}
+
+{/* Floating Terminal Toggle */}
+{!showTerminal && (
+  <button
+    onClick={() => setShowTerminal(true)}
+    className="fixed bottom-4 right-4 bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-full shadow-lg transition-colors"
+    title="Open Terminal"
+  >
+    <TerminalIcon size={20} />
+  </button>
+)}
+</div>
+</div>
+</div>
+  );  
 };
 
 export default VSCodeFileExplorer;
