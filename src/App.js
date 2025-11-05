@@ -532,6 +532,11 @@ yarn-error.log*`
 // ============================================================================
 
 function AppContent() {
+
+  // ===== AUTH HOOK =====
+  const { currentUser, isAuthenticated, authLoading, error: authError, setError: setAuthError } = useAuth();
+
+  // ===== UI STATE HOOKS =====
   const [currentView, setCurrentView] = useState('prompt');
   const [prompt, setPrompt] = useState('');
   const [ideation, setIdeation] = useState(null);
@@ -544,12 +549,10 @@ function AppContent() {
   const [showUserProfile, setShowUserProfile] = useState(false);
   const [currentProject, setCurrentProject] = useState(null);
 
-  // Documentation Agent States
+  // ===== DOCS HOOKS =====
   const [showDocModal, setShowDocModal] = useState(false);
   const [generatedDocs, setGeneratedDocs] = useState(null);
   const [showDocsViewer, setShowDocsViewer] = useState(false);
-
-  const { currentUser, isAuthenticated, error: authError, setError: setAuthError } = useAuth();
 
   const { 
     generateDocumentation, 
@@ -563,6 +566,7 @@ function AppContent() {
   const [showTestViewer, setShowTestViewer] = useState(false);
   const [testSuite, setTestSuite] = useState(null);
   const [codeQuality, setCodeQuality] = useState(null);
+
   const { 
     generateTestSuite, 
     analyzeCodebase,
@@ -570,6 +574,19 @@ function AppContent() {
     isGenerating: isGeneratingTests, 
     testProgress 
   } = useTestingAgent();
+  
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-950 text-white">
+        <div className="text-center">
+          <div className="animate-spin w-10 h-10 border-4 border-purple-500 border-b-transparent rounded-full mx-auto mb-3" />
+          <p className="text-gray-400">Checking session...</p>
+        </div>
+      </div>
+    );
+  }
+
 
   // ============================================================================
   // ENHANCED GENERATE IDEATION WITH ROBUST PARSING

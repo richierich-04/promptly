@@ -12,7 +12,8 @@ import {
 import { auth } from './config';
 
 // Sign up with email and password
-export const signUp = async (email, password, displayName = '') => {
+export const signUp = async (email,
+   password, displayName = '') => {
   try {
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
     

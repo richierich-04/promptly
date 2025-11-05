@@ -1,4 +1,3 @@
-// src/components/Dashboard.jsx - Complete User Dashboard
 import React, { useState, useEffect } from 'react';
 import { 
   Plus, 
@@ -14,59 +13,201 @@ import {
   List,
   TrendingUp,
   Code,
-  Loader
+  Loader,
+  Star,
+  Calendar,
+  FileText,
+  CheckCircle,
+  AlertCircle
 } from 'lucide-react';
-import { useAuth } from '../contexts/AuthContext';
-import { 
-  getUserProjects, 
-  deleteProject, 
-  duplicateProject,
-  updateLastAccessed,
-  getProjectStats,
-  searchProjects
-} from '../services/projectService';
+
+
+// Mock Auth Context (replace with your actual auth)
+const useAuth = () => ({
+  currentUser: { uid: 'user123', displayName: 'John Doe', email: 'john@example.com' }
+});
+
+// Mock Project Service (replace with your actual Firestore service)
+const projectService = {
+  getUserProjects: async (userId) => {
+    // Simulate API call
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    return {
+      success: true,
+      projects: [
+        {
+          id: '1',
+          name: 'E-commerce Platform',
+          description: 'Full-stack online store with cart and payments',
+          status: 'in-progress',
+          createdAt: new Date('2024-01-10'),
+          updatedAt: new Date('2024-01-15'),
+          lastAccessedAt: new Date('2024-01-15'),
+          techStack: {
+            frontend: ['React', 'Tailwind CSS'],
+            backend: ['Node.js', 'Express'],
+            database: ['MongoDB']
+          },
+          thumbnail: null,
+          progress: 75,
+          filesCount: 24,
+          linesOfCode: 3420
+        },
+        {
+          id: '2',
+          name: 'Task Manager Pro',
+          description: 'Productivity app with AI suggestions',
+          status: 'completed',
+          createdAt: new Date('2024-01-08'),
+          updatedAt: new Date('2024-01-14'),
+          lastAccessedAt: new Date('2024-01-14'),
+          techStack: {
+            frontend: ['React', 'Redux'],
+            backend: ['Firebase']
+          },
+          progress: 100,
+          filesCount: 18,
+          linesOfCode: 2150
+        },
+        {
+          id: '3',
+          name: 'Portfolio Website',
+          description: 'Modern portfolio with animations',
+          status: 'draft',
+          createdAt: new Date('2024-01-12'),
+          updatedAt: new Date('2024-01-12'),
+          lastAccessedAt: new Date('2024-01-12'),
+          techStack: {
+            frontend: ['React', 'Framer Motion']
+          },
+          progress: 30,
+          filesCount: 8,
+          linesOfCode: 850
+        },
+        {
+          id: '4',
+          name: 'Weather Dashboard',
+          description: 'Real-time weather with maps',
+          status: 'in-progress',
+          createdAt: new Date('2024-01-09'),
+          updatedAt: new Date('2024-01-13'),
+          lastAccessedAt: new Date('2024-01-13'),
+          techStack: {
+            frontend: ['React'],
+            backend: ['OpenWeather API']
+          },
+          progress: 60,
+          filesCount: 12,
+          linesOfCode: 1540
+        },
+        {
+          id: '5',
+          name: 'Social Media App',
+          description: 'Connect with friends and share moments',
+          status: 'in-progress',
+          createdAt: new Date('2024-01-05'),
+          updatedAt: new Date('2024-01-11'),
+          lastAccessedAt: new Date('2024-01-11'),
+          techStack: {
+            frontend: ['React', 'Redux'],
+            backend: ['Node.js', 'Socket.io'],
+            database: ['PostgreSQL']
+          },
+          progress: 45,
+          filesCount: 32,
+          linesOfCode: 4200
+        },
+        {
+          id: '6',
+          name: 'Recipe Finder',
+          description: 'Discover and save delicious recipes',
+          status: 'completed',
+          createdAt: new Date('2024-01-03'),
+          updatedAt: new Date('2024-01-10'),
+          lastAccessedAt: new Date('2024-01-10'),
+          techStack: {
+            frontend: ['React'],
+            backend: ['Spoonacular API']
+          },
+          progress: 100,
+          filesCount: 15,
+          linesOfCode: 1890
+        }
+      ]
+    };
+  },
+  
+  deleteProject: async (projectId) => {
+    await new Promise(resolve => setTimeout(resolve, 500));
+    return { success: true };
+  },
+  
+  duplicateProject: async (projectId, userId) => {
+    await new Promise(resolve => setTimeout(resolve, 500));
+    return { success: true, projectId: 'new-' + projectId };
+  },
+  
+  updateLastAccessed: async (projectId) => {
+    await new Promise(resolve => setTimeout(resolve, 200));
+    return { success: true };
+  },
+  
+  getProjectStats: async (userId) => {
+    await new Promise(resolve => setTimeout(resolve, 500));
+    return {
+      success: true,
+      stats: {
+        totalProjects: 6,
+        draftProjects: 1,
+        inProgressProjects: 3,
+        completedProjects: 2,
+        totalLines: 14050,
+        totalFiles: 109
+      }
+    };
+  }
+};
 
 const Dashboard = ({ onNewProject, onOpenProject, onLogout }) => {
   const { currentUser } = useAuth();
   const [projects, setProjects] = useState([]);
   const [filteredProjects, setFilteredProjects] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [viewMode, setViewMode] = useState('grid'); // 'grid' or 'list'
-  const [filterStatus, setFilterStatus] = useState('all'); // 'all', 'draft', 'in-progress', 'completed'
+  const [viewMode, setViewMode] = useState('grid');
+  const [filterStatus, setFilterStatus] = useState('all');
   const [stats, setStats] = useState(null);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [selectedProject, setSelectedProject] = useState(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [actionLoading, setActionLoading] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
 
-  // Load projects on mount
+  // Load projects and stats
   useEffect(() => {
     if (currentUser) {
-      loadProjects();
+      loadProjects(true); // initial load
       loadStats();
     }
-  }, [currentUser]);
+  }, [currentUser]);  
 
-  // Filter projects when search or filter changes
+  // Filter projects
   useEffect(() => {
     filterProjects();
   }, [searchQuery, filterStatus, projects]);
 
-  const loadProjects = async () => {
-    setLoading(true);
-    const { success, projects: userProjects, error } = await getUserProjects(currentUser.uid);
-    
+  const loadProjects = async (isInitial = false) => {
+    if (isInitial) setInitialLoading(true);
+  
+    const { success, projects: userProjects } = await projectService.getUserProjects(currentUser.uid);
     if (success) {
       setProjects(userProjects);
-    } else {
-      console.error('Error loading projects:', error);
     }
-    
-    setLoading(false);
+  
+    if (isInitial) setInitialLoading(false);
   };
 
   const loadStats = async () => {
-    const { success, stats: projectStats } = await getProjectStats(currentUser.uid);
+    const { success, stats: projectStats } = await projectService.getProjectStats(currentUser.uid);
     if (success) {
       setStats(projectStats);
     }
@@ -75,12 +216,10 @@ const Dashboard = ({ onNewProject, onOpenProject, onLogout }) => {
   const filterProjects = () => {
     let filtered = [...projects];
     
-    // Apply status filter
     if (filterStatus !== 'all') {
       filtered = filtered.filter(p => p.status === filterStatus);
     }
     
-    // Apply search
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter(p => 
@@ -93,47 +232,62 @@ const Dashboard = ({ onNewProject, onOpenProject, onLogout }) => {
   };
 
   const handleOpenProject = async (project) => {
-    await updateLastAccessed(project.id);
-    onOpenProject(project);
+    setActionLoading(true);
+    await projectService.updateLastAccessed(project.id);
+    setTimeout(() => {
+      setActionLoading(false);
+      onOpenProject(project);
+    }, 500);
   };
 
   const handleDeleteProject = async (projectId) => {
-    const { success } = await deleteProject(projectId);
+    setActionLoading(true);
+    const { success } = await projectService.deleteProject(projectId);
     
     if (success) {
-      setProjects(projects.filter(p => p.id !== projectId));
+      setProjects(prev => prev.filter(p => p.id !== projectId));
       setShowDeleteModal(false);
       setSelectedProject(null);
-      loadStats(); // Refresh stats
-    }
-  };
-
-  const handleDuplicateProject = async (projectId) => {
-    const { success, projectId: newProjectId } = await duplicateProject(projectId, currentUser.uid);
-    
-    if (success) {
-      loadProjects(); // Reload to show the new project
       loadStats();
     }
+    setActionLoading(false);
   };
-
+  
+  const handleDuplicateProject = async (projectId) => {
+    setActionLoading(true);
+    const { success } = await projectService.duplicateProject(projectId, currentUser.uid);
+    
+    if (success) {
+      await loadProjects();  // ✅ now only refresh, no flicker
+      await loadStats();
+    }
+    setActionLoading(false);
+  };
+  
   const getProjectColor = (status) => {
     switch (status) {
-      case 'completed': return 'border-green-500/40 hover:border-green-500/70';
-      case 'in-progress': return 'border-blue-500/40 hover:border-blue-500/70';
-      default: return 'border-purple-500/40 hover:border-purple-500/70';
+      case 'completed': return 'border-green-500/40 hover:border-green-500/70 bg-green-500/5';
+      case 'in-progress': return 'border-blue-500/40 hover:border-blue-500/70 bg-blue-500/5';
+      default: return 'border-purple-500/40 hover:border-purple-500/70 bg-purple-500/5';
     }
   };
 
   const getStatusBadge = (status) => {
     const colors = {
-      draft: 'bg-gray-500/20 text-gray-400',
-      'in-progress': 'bg-blue-500/20 text-blue-400',
-      completed: 'bg-green-500/20 text-green-400'
+      draft: 'bg-gray-500/20 text-gray-300 border-gray-500/30',
+      'in-progress': 'bg-blue-500/20 text-blue-300 border-blue-500/30',
+      completed: 'bg-green-500/20 text-green-300 border-green-500/30'
+    };
+    
+    const icons = {
+      draft: <Edit className="w-3 h-3" />,
+      'in-progress': <Loader className="w-3 h-3 animate-spin" />,
+      completed: <CheckCircle className="w-3 h-3" />
     };
     
     return (
-      <span className={`text-xs px-2 py-1 rounded-full ${colors[status] || colors.draft}`}>
+      <span className={`inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border ${colors[status] || colors.draft}`}>
+        {icons[status]}
         {status.replace('-', ' ')}
       </span>
     );
@@ -152,6 +306,24 @@ const Dashboard = ({ onNewProject, onOpenProject, onLogout }) => {
     if (days < 30) return `${Math.floor(days / 7)} weeks ago`;
     return date.toLocaleDateString();
   };
+
+  const getProgressColor = (progress) => {
+    if (progress >= 80) return 'bg-green-500';
+    if (progress >= 50) return 'bg-blue-500';
+    if (progress >= 30) return 'bg-yellow-500';
+    return 'bg-gray-500';
+  };
+
+  if (initialLoading) {
+    return (
+      <div className="min-h-screen bg-gray-950 flex items-center justify-center">
+        <div className="text-center">
+          <Loader className="w-12 h-12 text-purple-500 animate-spin mx-auto mb-4" />
+          <p className="text-gray-400">Loading your workspace...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-950 text-white">
@@ -206,36 +378,40 @@ const Dashboard = ({ onNewProject, onOpenProject, onLogout }) => {
         {/* Stats Cards */}
         {stats && (
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-            <div className="bg-gray-900 rounded-xl p-6 border border-purple-500/20">
+            <div className="bg-gray-900 rounded-xl p-6 border border-purple-500/20 hover:border-purple-500/40 transition-all">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-gray-400 text-sm">Total Projects</span>
                 <Folder className="w-5 h-5 text-purple-400" />
               </div>
               <div className="text-3xl font-bold text-white">{stats.totalProjects}</div>
+              <div className="text-xs text-gray-500 mt-1">{stats.totalFiles} files total</div>
             </div>
             
-            <div className="bg-gray-900 rounded-xl p-6 border border-blue-500/20">
+            <div className="bg-gray-900 rounded-xl p-6 border border-blue-500/20 hover:border-blue-500/40 transition-all">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-gray-400 text-sm">In Progress</span>
                 <TrendingUp className="w-5 h-5 text-blue-400" />
               </div>
               <div className="text-3xl font-bold text-white">{stats.inProgressProjects}</div>
+              <div className="text-xs text-gray-500 mt-1">Active development</div>
             </div>
             
-            <div className="bg-gray-900 rounded-xl p-6 border border-green-500/20">
+            <div className="bg-gray-900 rounded-xl p-6 border border-green-500/20 hover:border-green-500/40 transition-all">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-gray-400 text-sm">Completed</span>
-                <Code className="w-5 h-5 text-green-400" />
+                <CheckCircle className="w-5 h-5 text-green-400" />
               </div>
               <div className="text-3xl font-bold text-white">{stats.completedProjects}</div>
+              <div className="text-xs text-gray-500 mt-1">Ready to deploy</div>
             </div>
             
-            <div className="bg-gray-900 rounded-xl p-6 border border-gray-700">
+            <div className="bg-gray-900 rounded-xl p-6 border border-cyan-500/20 hover:border-cyan-500/40 transition-all">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-gray-400 text-sm">Draft</span>
-                <Clock className="w-5 h-5 text-gray-400" />
+                <span className="text-gray-400 text-sm">Lines of Code</span>
+                <Code className="w-5 h-5 text-cyan-400" />
               </div>
-              <div className="text-3xl font-bold text-white">{stats.draftProjects}</div>
+              <div className="text-3xl font-bold text-white">{stats.totalLines?.toLocaleString()}</div>
+              <div className="text-xs text-gray-500 mt-1">Total written</div>
             </div>
           </div>
         )}
@@ -274,12 +450,8 @@ const Dashboard = ({ onNewProject, onOpenProject, onLogout }) => {
           </div>
         </div>
 
-        {/* Projects Grid/List */}
-        {loading ? (
-          <div className="flex items-center justify-center py-20">
-            <Loader className="w-8 h-8 text-purple-500 animate-spin" />
-          </div>
-        ) : filteredProjects.length === 0 ? (
+        {/* Projects Grid */}
+        {filteredProjects.length === 0 ? (
           <div className="text-center py-20">
             <Folder className="w-16 h-16 text-gray-700 mx-auto mb-4" />
             <h3 className="text-xl font-semibold text-gray-400 mb-2">
@@ -308,72 +480,116 @@ const Dashboard = ({ onNewProject, onOpenProject, onLogout }) => {
             {filteredProjects.map((project) => (
               <div
                 key={project.id}
-                className={`bg-gray-900 rounded-xl border-2 ${getProjectColor(project.status)} hover:bg-gray-800 transition-all cursor-pointer group ${
+                className={`bg-gray-900 rounded-xl border-2 ${getProjectColor(project.status)} transition-all cursor-pointer group relative overflow-hidden ${
                   viewMode === 'list' ? 'p-4' : 'p-6'
                 }`}
                 onClick={() => handleOpenProject(project)}
               >
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex-1">
-                    <h3 className="text-lg font-semibold text-white mb-1 group-hover:text-purple-400 transition-colors">
-                      {project.name}
-                    </h3>
-                    <p className="text-sm text-gray-400 line-clamp-2">
-                      {project.description || 'No description'}
-                    </p>
-                  </div>
-                  
-                  <div className="relative">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedProject(project.id === selectedProject ? null : project.id);
-                      }}
-                      className="p-2 hover:bg-gray-700 rounded-lg transition-colors"
-                    >
-                      <MoreVertical className="w-4 h-4" />
-                    </button>
-                    
-                    {selectedProject === project.id && (
-                      <div className="absolute right-0 mt-2 w-48 bg-gray-800 rounded-lg border border-gray-700 shadow-xl z-10">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDuplicateProject(project.id);
-                            setSelectedProject(null);
-                          }}
-                          className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-300 hover:bg-gray-700 rounded-t-lg transition-colors"
-                        >
-                          <Copy className="w-4 h-4" />
-                          Duplicate
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setShowDeleteModal(true);
-                            setSelectedProject(project.id);
-                          }}
-                          className="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-400 hover:bg-gray-700 rounded-b-lg transition-colors"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                          Delete
-                        </button>
+                {/* Hover Gradient Effect */}
+                <div className="absolute inset-0 bg-gradient-to-br from-purple-500/0 to-pink-500/0 group-hover:from-purple-500/10 group-hover:to-pink-500/10 transition-all duration-300"></div>
+                
+                <div className="relative z-10">
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-2">
+                        <h3 className="text-lg font-semibold text-white group-hover:text-purple-400 transition-colors">
+                          {project.name}
+                        </h3>
+                        {project.progress === 100 && (
+                          <Star className="w-4 h-4 text-yellow-400 fill-yellow-400" />
+                        )}
                       </div>
-                    )}
+                      <p className="text-sm text-gray-400 line-clamp-2 mb-3">
+                        {project.description || 'No description'}
+                      </p>
+                    </div>
+                    
+                    <div className="relative">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedProject(selectedProject === project.id ? null : project.id);
+                        }}
+                        className="p-2 hover:bg-gray-700 rounded-lg transition-colors"
+                      >
+                        <MoreVertical className="w-4 h-4" />
+                      </button>
+                      
+                      {selectedProject === project.id && (
+                        <div className="absolute right-0 mt-2 w-48 bg-gray-800 rounded-lg border border-gray-700 shadow-xl z-20">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDuplicateProject(project.id);
+                              setSelectedProject(null);
+                            }}
+                            className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-300 hover:bg-gray-700 rounded-t-lg transition-colors"
+                          >
+                            <Copy className="w-4 h-4" />
+                            Duplicate
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setShowDeleteModal(true);
+                              setSelectedProject(project.id);
+                            }}
+                            className="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-400 hover:bg-gray-700 rounded-b-lg transition-colors"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                            Delete
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
 
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    {getStatusBadge(project.status)}
-                    {project.techStack?.frontend?.[0] && (
-                      <span className="text-xs px-2 py-1 bg-gray-800 text-gray-400 rounded-full">
-                        {project.techStack.frontend[0]}
-                      </span>
-                    )}
+                  {/* Progress Bar */}
+                  <div className="mb-4">
+                    <div className="flex items-center justify-between text-xs text-gray-400 mb-2">
+                      <span>Progress</span>
+                      <span>{project.progress}%</span>
+                    </div>
+                    <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
+                      <div 
+                        className={`h-full ${getProgressColor(project.progress)} transition-all duration-500`}
+                        style={{ width: `${project.progress}%` }}
+                      />
+                    </div>
                   </div>
-                  
-                  <div className="flex items-center gap-1 text-xs text-gray-500">
+
+                  {/* Tech Stack Tags */}
+                  <div className="flex flex-wrap gap-2 mb-4">
+                    {project.techStack?.frontend?.slice(0, 3).map((tech, idx) => (
+                      <span 
+                        key={idx}
+                        className="text-xs px-2 py-1 bg-purple-500/20 text-purple-300 rounded border border-purple-500/30"
+                      >
+                        {tech}
+                      </span>
+                    ))}
+                  </div>
+
+                  {/* Footer */}
+                  <div className="flex items-center justify-between pt-4 border-t border-gray-800">
+                    <div className="flex items-center gap-4 text-xs text-gray-500">
+                      <span className="flex items-center gap-1">
+                        <FileText className="w-3 h-3" />
+                        {project.filesCount} files
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <Code className="w-3 h-3" />
+                        {project.linesOfCode?.toLocaleString()} LOC
+                      </span>
+                    </div>
+                    
+                    <div className="flex items-center gap-2">
+                      {getStatusBadge(project.status)}
+                    </div>
+                  </div>
+
+                  {/* Last Modified */}
+                  <div className="flex items-center gap-1 text-xs text-gray-500 mt-2">
                     <Clock className="w-3 h-3" />
                     {formatDate(project.lastAccessedAt)}
                   </div>
@@ -387,10 +603,18 @@ const Dashboard = ({ onNewProject, onOpenProject, onLogout }) => {
       {/* Delete Confirmation Modal */}
       {showDeleteModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="bg-gray-800 rounded-2xl p-6 max-w-md w-full border-2 border-red-500/30">
-            <h3 className="text-xl font-bold text-white mb-4">Delete Project?</h3>
+          <div className="bg-gray-800 rounded-2xl p-6 max-w-md w-full border-2 border-red-500/30 mx-4">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 bg-red-500/20 rounded-full flex items-center justify-center">
+                <AlertCircle className="w-6 h-6 text-red-400" />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold text-white">Delete Project?</h3>
+                <p className="text-sm text-gray-400">This action cannot be undone</p>
+              </div>
+            </div>
             <p className="text-gray-400 mb-6">
-              This action cannot be undone. The project and all its files will be permanently deleted.
+              The project and all its files will be permanently deleted from your workspace.
             </p>
             <div className="flex gap-3">
               <button
@@ -398,17 +622,36 @@ const Dashboard = ({ onNewProject, onOpenProject, onLogout }) => {
                   setShowDeleteModal(false);
                   setSelectedProject(null);
                 }}
-                className="flex-1 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors"
+                disabled={actionLoading}
+                className="flex-1 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors disabled:opacity-50"
               >
                 Cancel
               </button>
               <button
                 onClick={() => handleDeleteProject(selectedProject)}
-                className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors"
+                disabled={actionLoading}
+                className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
               >
-                Delete
+                {actionLoading ? (
+                  <>
+                    <Loader className="w-4 h-4 animate-spin" />
+                    Deleting...
+                  </>
+                ) : (
+                  'Delete'
+                )}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Action Loading Overlay */}
+      {actionLoading && !showDeleteModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-gray-800 rounded-2xl p-8 border-2 border-purple-500/30">
+            <Loader className="w-12 h-12 text-purple-500 animate-spin mx-auto mb-4" />
+            <p className="text-white text-center">Processing...</p>
           </div>
         </div>
       )}
