@@ -180,7 +180,7 @@ const Dashboard = ({ onNewProject, onOpenProject, onLogout }) => {
   const [selectedProject, setSelectedProject] = useState(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
-  const [initialLoading, setInitialLoading] = useState(true);
+
 
   // Load projects and stats
   useEffect(() => {
@@ -196,14 +196,13 @@ const Dashboard = ({ onNewProject, onOpenProject, onLogout }) => {
   }, [searchQuery, filterStatus, projects]);
 
   const loadProjects = async (isInitial = false) => {
-    if (isInitial) setInitialLoading(true);
-  
+    // Don't show loading spinner for initial load (we already have transition screen)
+    // Only show loading for subsequent refreshes
+    
     const { success, projects: userProjects } = await projectService.getUserProjects(currentUser.uid);
     if (success) {
       setProjects(userProjects);
     }
-  
-    if (isInitial) setInitialLoading(false);
   };
 
   const loadStats = async () => {
@@ -314,17 +313,7 @@ const Dashboard = ({ onNewProject, onOpenProject, onLogout }) => {
     return 'bg-gray-500';
   };
 
-  if (initialLoading) {
-    return (
-      <div className="min-h-screen bg-gray-950 flex items-center justify-center">
-        <div className="text-center">
-          <Loader className="w-12 h-12 text-purple-500 animate-spin mx-auto mb-4" />
-          <p className="text-gray-400">Loading your workspace...</p>
-        </div>
-      </div>
-    );
-  }
-
+  
   return (
     <div className="min-h-screen bg-gray-950 text-white">
       {/* Header */}

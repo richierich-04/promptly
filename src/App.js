@@ -2090,7 +2090,12 @@ export default App;`;
 
   const handleLoginSuccess = (user) => {
     console.log('Login successful:', user);
-    setCurrentView('dashboard'); // Changed from 'prompt'
+    setCurrentView('transition-to-dashboard');
+    
+    // Add a small delay to show the transition properly
+    setTimeout(() => {
+      setCurrentView('dashboard');
+    }, 1500); // 1.5 seconds for smooth transition
   };
 
   const handleLogout = () => {
