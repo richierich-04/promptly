@@ -14,6 +14,8 @@ import { createProject, getProject, updateProject } from './services/projectServ
 import PromptView from './components/PromptView';
 import { useDocumentationAgent, DocumentationModal } from './hooks/useDocumentationAgent';
 import { useTestingAgent, TestingModal } from './hooks/useTestingAgent';
+import { logOut } from './firebase/auth';
+
 
 
 //ADD YOUR GEMINI API KEY HERE
@@ -2114,8 +2116,17 @@ const handleGenerateIdeation = async (userPrompt) => {
     }, 1500); // 1.5 seconds for smooth transition
   };
 
-  const handleLogout = () => {
-    setCurrentView('prompt');
+  const handleLogout = async () => {
+    // First, log out from Firebase
+    const { error } = await logOut();
+    
+    if (error) {
+      setAuthError(error);
+      return;
+    }
+    
+    // Reset all state
+    setCurrentView('prompt'); // This will be overridden by auth check
     setShowUserProfile(false);
     setPrompt('');
     setIdeation(null);
@@ -2125,6 +2136,10 @@ const handleGenerateIdeation = async (userPrompt) => {
     setShowIdeation(false);
     setAnimateFeatures([]);
     setLoading(false);
+    setCurrentProject(null);
+    
+    // The AuthContext will detect the logout and automatically show login page
+    // No need to manually set view - the auth check will handle it
   };
 
   // Show authentication screen if user is not logged in
