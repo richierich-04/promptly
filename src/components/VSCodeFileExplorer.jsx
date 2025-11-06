@@ -82,6 +82,42 @@ const VSCodeFileExplorer = ({
 
   // Configure Monaco loader
   useEffect(() => {
+    if (fileSystem) {
+      console.log('🔍 Extracting files from fileSystem...');
+      const extractFiles = (node, path = '') => {
+        const files = {};
+        const currentPath = path ? `${path}/${node.name}` : node.name;
+
+        if (node.type === 'file') {
+          files[currentPath] = node.content || '';
+          console.log(`📄 ${currentPath}: ${(node.content || '').length} chars`);
+        }
+
+        if (node.type === 'folder' && node.children) {
+          node.children.forEach(child => {
+            Object.assign(files, extractFiles(child, currentPath));
+          });
+        }
+
+        return files;
+      };
+
+      const extracted = extractFiles(fileSystem);
+      console.log('✅ Total files extracted:', Object.keys(extracted).length);
+      setFileContents(extracted);
+
+      // Auto-open first file
+      if (!activeTab && Object.keys(extracted).length > 0) {
+        const firstFile = Object.keys(extracted)[0];
+        console.log('🎯 Auto-opening:', firstFile);
+        setOpenTabs([firstFile]);
+        setActiveTab(firstFile);
+      }
+    }
+  }, [fileSystem]);
+
+  // Configure Monaco loader
+  useEffect(() => {
     loader.config({
       paths: {
         vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs'
@@ -90,6 +126,10 @@ const VSCodeFileExplorer = ({
     
     loader.init().then(() => {
       console.log('✅ Monaco Editor initialized');
+      setTerminalOutput(prev => [...prev, { 
+        type: 'success', 
+        text: '✅ Monaco Editor loaded' 
+      }]);
     }).catch((error) => {
       console.error('❌ Monaco initialization failed:', error);
       setTerminalOutput(prev => [...prev, { 
