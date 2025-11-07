@@ -603,7 +603,7 @@ function AppContent() {
     setError('');
     
     try {
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${GEMINI_API_KEY}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -611,56 +611,63 @@ function AppContent() {
         body: JSON.stringify({
           contents: [{
             parts: [{
-              text: `You are a product ideation specialist. Based on the following user prompt, create a detailed project ideation plan.
+              text: `You are a product ideation specialist. Create a detailed, specific project plan for a WORKING web application.
 
-User Prompt: "${userPrompt}"
+User Request: "${userPrompt}"
 
-CRITICAL: Return ONLY valid JSON (no markdown, no explanations, no code blocks).
+CRITICAL: Create a plan for an application with REAL, IMPLEMENTABLE features. Be specific about what each feature does.
 
-EXACT FORMAT:
+Return ONLY valid JSON (no markdown):
+
 {
-  "projectName": "A catchy name for the project",
-  "description": "2-3 sentence description of what the project does",
+  "projectName": "Catchy, descriptive name (2-4 words)",
+  "description": "Clear 2-sentence description of what users can DO with this app",
   "features": [
-    "Feature 1 with brief description",
-    "Feature 2 with brief description",
-    "Feature 3 with brief description",
-    "Feature 4 with brief description"
+    "SPECIFIC feature 1 with exact functionality (e.g., 'Add and edit tasks with drag-and-drop reordering')",
+    "SPECIFIC feature 2 (e.g., 'Filter tasks by completion status with visual indicators')",
+    "SPECIFIC feature 3 (e.g., 'Save tasks to browser localStorage for persistence')",
+    "SPECIFIC feature 4 (e.g., 'Display task statistics with animated counters')"
   ],
   "techStack": {
-    "frontend": ["React", "Tailwind CSS"],
-    "backend": ["Node.js", "Express"],
-    "database": ["MongoDB"],
+    "frontend": ["React", "Tailwind CSS" or "CSS-in-JS"],
+    "backend": ["Node.js", "Express"] (can be empty array if client-side only),
+    "database": ["localStorage"] or ["MongoDB"] or [],
     "other": []
   },
   "colorScheme": {
-    "primary": "#6366f1",
+    "primary": "#6366f1" (vibrant, project-appropriate color),
     "secondary": "#8b5cf6",
     "accent": "#ec4899",
-    "background": "#ffffff",
-    "text": "#1f2937",
-    "description": "Modern and professional"
+    "background": "#ffffff" or "#0f172a" (light or dark theme),
+    "text": "#1f2937" or "#f1f5f9",
+    "description": "Professional and modern"
   },
   "styleGuidelines": {
-    "layout": "Clean and minimal",
-    "typography": "Inter font family",
-    "iconography": "Line icons",
-    "animation": "Subtle transitions"
+    "layout": "Clean with card-based design" or similar,
+    "typography": "Inter or system font",
+    "iconography": "Emoji or Unicode icons",
+    "animation": "Smooth transitions and hover effects"
   },
-  "userFlow": ["Step 1", "Step 2", "Step 3"],
-  "targetAudience": "Who is this app for",
-  "uniqueSellingPoint": "What makes this project special"
+  "userFlow": [
+    "User opens app and sees main interface",
+    "User interacts with feature 1 (be specific)",
+    "User interacts with feature 2",
+    "Data persists and updates in real-time"
+  ],
+  "targetAudience": "Specific user group (e.g., 'Students managing homework', 'Shoppers comparing prices')",
+  "uniqueSellingPoint": "What makes this implementation special or better"
 }
 
-Rules:
-1. Return ONLY the JSON object
-2. No markdown formatting
-3. No explanations
-4. Valid JSON syntax`
+EXAMPLES:
+- For "todo app": Features like "Add tasks with + button", "Mark complete with checkbox", "Delete with trash icon", "Filter all/active/done"
+- For "calculator": Features like "Basic operations (+,-,*,/)", "Clear and backspace buttons", "Decimal support", "Keyboard input"
+- For "weather app": Features like "Search cities by name", "Display current temperature and condition", "5-day forecast cards", "Toggle Celsius/Fahrenheit"
+
+Be SPECIFIC. Don't say "manage tasks", say "add, edit, delete, and mark tasks complete with a clean interface".`
             }]
           }],
           generationConfig: {
-            temperature: 0.7,
+            temperature: 0.8,
             topK: 40,
             topP: 0.95,
             maxOutputTokens: 2048
@@ -701,8 +708,8 @@ Rules:
   };
 
  // ============================================================================
-// ENHANCED generateFilesFromIdeation FUNCTION
-// Replace your existing function with this improved version
+// IMPROVED generateFilesFromIdeation FUNCTION
+// Multi-stage generation for better, more functional code
 // ============================================================================
 
 const generateFilesFromIdeation = async () => {
@@ -710,71 +717,49 @@ const generateFilesFromIdeation = async () => {
   setError('');
   
   try {
-    // Create detailed context about what to build
+    // Create focused, concise context
     const ideationContext = `
-PROJECT SPECIFICATION:
-======================
-Name: ${ideation.projectName}
-Description: ${ideation.description}
-Target Audience: ${ideation.targetAudience}
-Unique Selling Point: ${ideation.uniqueSellingPoint}
+PROJECT: ${ideation.projectName}
+DESCRIPTION: ${ideation.description}
+TARGET: ${ideation.targetAudience}
 
-FEATURES TO IMPLEMENT:
+KEY FEATURES:
 ${ideation.features.map((f, i) => `${i + 1}. ${f}`).join('\n')}
 
-TECHNOLOGY STACK:
-- Frontend: ${ideation.techStack.frontend.join(', ')}
-- Backend: ${ideation.techStack.backend.join(', ')}
-${ideation.techStack.database ? `- Database: ${ideation.techStack.database.join(', ')}` : ''}
-
-DESIGN SYSTEM:
-- Primary Color: ${ideation.colorScheme.primary}
-- Secondary Color: ${ideation.colorScheme.secondary}
-- Accent Color: ${ideation.colorScheme.accent}
-- Background: ${ideation.colorScheme.background}
-- Text Color: ${ideation.colorScheme.text}
-- Layout: ${ideation.styleGuidelines.layout}
-- Typography: ${ideation.styleGuidelines.typography}
-
-USER FLOW:
-${ideation.userFlow.map((step, i) => `Step ${i + 1}: ${step}`).join('\n')}
+TECH: ${ideation.techStack.frontend.join(', ')}
+COLORS: Primary=${ideation.colorScheme.primary}, Secondary=${ideation.colorScheme.secondary}, Accent=${ideation.colorScheme.accent}
 `;
 
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${GEMINI_API_KEY}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           contents: [{
             parts: [{
-              text: `You are an expert full-stack developer. Create a COMPLETE, FUNCTIONAL, PRODUCTION-READY React website based on these specifications.
+              text: `You are an expert React developer. Create a COMPLETE, WORKING, PRODUCTION-READY single-page application.
 
 ${ideationContext}
 
 CRITICAL REQUIREMENTS:
-1. Build a REAL, WORKING website - NOT just a landing page displaying features
-2. Implement ALL features listed above with actual functionality
-3. Create multiple pages/views with React Router if needed
-4. Include forms, buttons, interactive elements, state management
-5. Use the exact color scheme provided
-6. Make it responsive and modern
-7. Add proper error handling and loading states
+1. Build REAL functionality - users must be able to interact and see results
+2. Implement ALL ${ideation.features.length} features with actual working code
+3. Use React hooks (useState, useEffect) for state management
+4. Make it fully responsive and modern
+5. Include proper error handling
+6. Use the specified color scheme
+7. Add animations and smooth transitions
 
-MUST CREATE THESE FILES:
-1. src/App.jsx - Main application with routing and feature implementation
-2. src/components/ - Individual components for each major feature
-3. src/pages/ - Separate pages if multi-page app
-4. src/styles/ or individual component styles
-5. src/utils/ - Helper functions if needed
-6. src/hooks/ - Custom React hooks if needed
-7. package.json - Complete with all dependencies
-8. README.md - Detailed documentation
-9. public/index.html - Proper HTML structure
+TECHNICAL GUIDELINES:
+- Main App.jsx should be 300-500 lines with all core logic
+- Create separate components only for complex reusable UI
+- Use inline styles with the color variables
+- Include localStorage for data persistence where appropriate
+- Add mock data or API simulation for realistic functionality
+- Make buttons, forms, and interactions actually work
 
-FILE STRUCTURE JSON FORMAT:
-Return ONLY valid JSON in this EXACT structure (no markdown, no explanations):
-
+OUTPUT FORMAT (RETURN ONLY VALID JSON):
 {
   "name": "project-root",
   "type": "folder",
@@ -786,36 +771,12 @@ Return ONLY valid JSON in this EXACT structure (no markdown, no explanations):
         {
           "name": "App.jsx",
           "type": "file",
-          "content": "// Complete React app code here with all features implemented\\n// Must include:\\n// - useState/useEffect for state management\\n// - Multiple components/sections\\n// - Event handlers for interactions\\n// - Forms if applicable\\n// - API calls if applicable\\n// - Proper styling"
+          "content": "// COMPLETE WORKING APP CODE HERE\\n// Must include:\\n// - Full React component with imports\\n// - State management for all features\\n// - Event handlers that actually work\\n// - Real functionality, not placeholders\\n// - Proper JSX structure\\n// - Inline styles using color scheme"
         },
         {
-          "name": "components",
-          "type": "folder",
-          "children": [
-            {
-              "name": "Header.jsx",
-              "type": "file",
-              "content": "// Navigation component"
-            },
-            {
-              "name": "Footer.jsx",
-              "type": "file",
-              "content": "// Footer component"
-            }
-            // Add MORE components for EACH feature
-          ]
-        },
-        {
-          "name": "pages",
-          "type": "folder",
-          "children": [
-            {
-              "name": "Home.jsx",
-              "type": "file",
-              "content": "// Home page component"
-            }
-            // Add pages for different sections
-          ]
+          "name": "App.css",
+          "type": "file",
+          "content": "/* Global styles and animations */"
         },
         {
           "name": "index.js",
@@ -825,7 +786,7 @@ Return ONLY valid JSON in this EXACT structure (no markdown, no explanations):
         {
           "name": "index.css",
           "type": "file",
-          "content": "/* Global styles with the color scheme */"
+          "content": "/* Root styles */"
         }
       ]
     },
@@ -836,107 +797,44 @@ Return ONLY valid JSON in this EXACT structure (no markdown, no explanations):
         {
           "name": "index.html",
           "type": "file",
-          "content": "<!DOCTYPE html>\\n<html lang=\\"en\\">\\n<head>\\n  <meta charset=\\"utf-8\\" />\\n  <meta name=\\"viewport\\" content=\\"width=device-width, initial-scale=1\\" />\\n  <title>${ideation.projectName}</title>\\n  <script src=\\"https://cdn.tailwindcss.com\\"></script>\\n</head>\\n<body>\\n  <div id=\\"root\\"></div>\\n</body>\\n</html>"
+          "content": "<!DOCTYPE html>\\n<html lang=\\"en\\">\\n<head>\\n  <meta charset=\\"utf-8\\" />\\n  <meta name=\\"viewport\\" content=\\"width=device-width, initial-scale=1\\" />\\n  <title>${ideation.projectName}</title>\\n  <script src=\\"https://cdn.tailwindcss.com\\"></script>\\n</head>\\n<body><div id=\\"root\\"></div></body>\\n</html>"
         }
       ]
     },
     {
       "name": "package.json",
       "type": "file",
-      "content": "{\\n  \\"name\\": \\"${ideation.projectName.toLowerCase().replace(/\\s+/g, '-')}\\",\\n  \\"version\\": \\"1.0.0\\",\\n  \\"dependencies\\": {\\n    \\"react\\": \\"^18.2.0\\",\\n    \\"react-dom\\": \\"^18.2.0\\",\\n    \\"react-router-dom\\": \\"^6.16.0\\",\\n    \\"react-scripts\\": \\"5.0.1\\"\\n  },\\n  \\"scripts\\": {\\n    \\"start\\": \\"react-scripts start\\",\\n    \\"build\\": \\"react-scripts build\\"\\n  }\\n}"
+      "content": "{\\"name\\":\\"${ideation.projectName.toLowerCase().replace(/\\s+/g, '-')}\\",\\"version\\":\\"1.0.0\\",\\"dependencies\\":{\\"react\\":\\"^18.2.0\\",\\"react-dom\\":\\"^18.2.0\\",\\"react-scripts\\":\\"5.0.1\\"},\\"scripts\\":{\\"start\\":\\"react-scripts start\\",\\"build\\":\\"react-scripts build\\"}}"
+    },
+    {
+      "name": "README.md",
+      "type": "file",
+      "content": "# ${ideation.projectName}\\n\\n${ideation.description}\\n\\n## Features\\n${ideation.features.map((f, i) => `${i+1}. ${f}`).join('\\n')}\\n\\n## Run\\n\`\`\`\\nnpm install\\nnpm start\\n\`\`\`"
     }
   ]
 }
 
-IMPLEMENTATION GUIDELINES:
+EXAMPLE FOR TASK MANAGER:
+Create state: const [tasks, setTasks] = useState([])
+Add functionality: const addTask = (text) => setTasks([...tasks, {id: Date.now(), text, done: false}])
+Toggle: const toggle = (id) => setTasks(tasks.map(t => t.id === id ? {...t, done: !t.done} : t))
+Render: {tasks.map(t => <div key={t.id} onClick={() => toggle(t.id)}>{t.text}</div>)}
 
-For App.jsx, implement it like this example structure:
+EXAMPLE FOR WEATHER APP:
+Create state: const [city, setCity] = useState(''); const [weather, setWeather] = useState(null)
+Mock API: const search = () => setWeather({temp: Math.floor(Math.random()*30), condition: 'Sunny'})
+Render: Display temperature, condition, icon based on weather state
 
-import React, { useState, useEffect } from 'react';
-// Import all components
+BUILD THE REAL APP - Make every feature work with real state and interactions!
 
-function App() {
-  // State management for all features
-  const [activeFeature, setActiveFeature] = useState(null);
-  const [data, setData] = useState([]);
-  const [loading, setLoading] = useState(false);
-  // ... more state as needed
-
-  // Implement actual feature logic
-  const handleFeature1 = () => {
-    // Real implementation
-  };
-
-  const handleFeature2 = () => {
-    // Real implementation
-  };
-
-  return (
-    <div style={{ background: '${ideation.colorScheme.background}', minHeight: '100vh' }}>
-      {/* Header/Navigation */}
-      <header>...</header>
-      
-      {/* Main feature sections - each should be interactive */}
-      <main>
-        {/* Feature 1 Implementation */}
-        <section id="feature1">
-          <h2>Feature 1</h2>
-          {/* Forms, buttons, displays, etc. */}
-        </section>
-
-        {/* Feature 2 Implementation */}
-        <section id="feature2">
-          <h2>Feature 2</h2>
-          {/* Interactive elements */}
-        </section>
-
-        {/* Continue for all features */}
-      </main>
-
-      {/* Footer */}
-      <footer>...</footer>
-    </div>
-  );
-}
-
-export default App;
-
-EXAMPLES OF WHAT TO BUILD:
-
-If it's a "Task Manager":
-- Create actual task list with add/edit/delete functionality
-- Mark tasks complete
-- Filter/sort tasks
-- Local storage persistence
-
-If it's an "E-commerce Site":
-- Product catalog with real items
-- Shopping cart with add/remove
-- Checkout form
-- Product search/filter
-
-If it's a "Blog Platform":
-- Post list/grid
-- Individual post view
-- Comment system
-- Search functionality
-
-If it's a "Weather App":
-- City search input
-- API integration (mock if needed)
-- Display current weather
-- 5-day forecast
-
-BUILD THE ACTUAL APPLICATION, NOT JUST A DESCRIPTION OF IT.
-
-Return ONLY the JSON structure with complete, working code.`
+Return ONLY the JSON.`
             }]
           }],
           generationConfig: {
-            temperature: 0.4, // Lower for more consistent structure
+            temperature: 0.7,
             topK: 40,
-            topP: 0.9,
-            maxOutputTokens: 8192
+            topP: 0.95,
+            maxOutputTokens: 16000
           }
         })
       }
