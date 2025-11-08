@@ -20,7 +20,8 @@ import {
   Loader,
   Wand2,
   Stars,
-  Rocket
+  Rocket,
+  ArrowLeft
 } from 'lucide-react';
 
 const PromptView = ({ onGenerateIdeation, loading, error, onBack }) => {
@@ -155,6 +156,17 @@ const PromptView = ({ onGenerateIdeation, loading, error, onBack }) => {
       </div>
 
       <div className="relative z-10 max-w-7xl mx-auto px-6 py-12">
+        {/* Back Button */}
+        {onBack && (
+          <button
+            onClick={onBack}
+            className="mb-6 flex items-center gap-2 px-4 py-2 text-sm bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg transition-all duration-300 hover:border-purple-500/50 group"
+          >
+            <ArrowLeft className="w-4 h-4 text-gray-400 group-hover:text-purple-400 transition-colors" />
+            <span className="text-gray-300 group-hover:text-white transition-colors">Back to Dashboard</span>
+          </button>
+        )}
+
         {/* Header Section */}
         <div className="text-center mb-12 animate-fade-in">
           <div className="inline-block mb-6">

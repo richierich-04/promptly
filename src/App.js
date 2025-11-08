@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Star, Palette, Layout, Type, Users, Play, Sparkles, ChevronDown, Edit, Lightbulb, Code, ArrowRight, Box, FileText } from 'lucide-react';
+import { Star, Palette, Layout, Type, Users, Play, Sparkles, ChevronDown, Edit, Lightbulb, Code, ArrowRight, Box, FileText, Zap, Target, Database, Rocket, ArrowLeft, CheckCircle, RefreshCw, Loader } from 'lucide-react';
 import VSCodeFileExplorer from './components/VSCodeFileExplorer';
 import Login from './components/Login';
 import SignUp from './components/SignUp';
@@ -8,7 +8,6 @@ import ErrorDisplay from './components/ErrorDisplay';
 import DocumentationViewer from './components/DocumentationViewer';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import TestingAgentViewer from './components/TestingAgentViewer';
-import { CheckCircle } from 'lucide-react';
 import Dashboard from './components/Dashboard';
 import { createProject, getProject, updateProject } from './services/projectService';
 import PromptView from './components/PromptView';
@@ -1861,6 +1860,90 @@ const handleGenerateIdeation = async (userPrompt) => {
 
 };
 
+  const handleRegenerateColorScheme = async () => {
+    if (!ideation || !prompt) {
+      alert('Unable to regenerate color scheme. Please try again.');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+
+    try {
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${GEMINI_API_KEY}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{
+              parts: [{
+                text: `You are a color scheme specialist. Generate a NEW, DIFFERENT color scheme for this project:
+
+Project: ${ideation.projectName}
+Description: ${ideation.description}
+Original Prompt: "${prompt}"
+
+Return ONLY valid JSON (no markdown, no explanations):
+{
+  "primary": "#hexcolor" (vibrant, project-appropriate color),
+  "secondary": "#hexcolor",
+  "accent": "#hexcolor",
+  "background": "#ffffff" or "#0f172a" (light or dark theme),
+  "text": "#1f2937" or "#f1f5f9",
+  "description": "Brief description of the color scheme style"
+}
+
+Make it visually appealing and different from the previous scheme.`
+              }]
+            }],
+            generationConfig: {
+              temperature: 0.9,
+              topK: 40,
+              topP: 0.95,
+              maxOutputTokens: 200,
+            }
+          })
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error('Failed to generate color scheme');
+      }
+
+      const data = await response.json();
+      const content = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      
+      if (!content) {
+        throw new Error('No content received from API');
+      }
+
+      // Parse JSON from response
+      const cleanedContent = content.trim().replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+      const newColorScheme = JSON.parse(cleanedContent);
+
+      // Update ideation with new color scheme
+      const updatedIdeation = {
+        ...ideation,
+        colorScheme: newColorScheme
+      };
+
+      setIdeation(updatedIdeation);
+
+      // Update project in database if it exists
+      if (currentProject?.id) {
+        await updateProject(currentProject.id, {
+          ideation: updatedIdeation
+        });
+      }
+
+    } catch (err) {
+      console.error('Error regenerating color scheme:', err);
+      setError('Failed to regenerate color scheme. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handlePrototype = async () => {
     setCurrentView('loading');
@@ -1944,21 +2027,21 @@ const handleGenerateIdeation = async (userPrompt) => {
 
   const handleBack = () => {
     if (currentView === 'ideation') {
-      // Go back from ideation to prompt
-      setCurrentView('prompt');
+      // Go back from ideation to dashboard
+      setCurrentView('dashboard');
       setIdeation(null);
       setError('');
       setShowIdeation(false);
       setAnimateFeatures([]);
     } else if (currentView === 'editor') {
-      // Go back from editor to ideation
-      setCurrentView('ideation');
+      // Go back from editor to dashboard
+      setCurrentView('dashboard');
       setGeneratedFiles(null);
       setGeneratedDocs(null);
       setError('');
     } else if (currentView === 'loading') {
-      // Go back from loading to ideation
-      setCurrentView('ideation');
+      // Go back from loading to dashboard
+      setCurrentView('dashboard');
       setError('');
     }
   };
@@ -2232,111 +2315,173 @@ if (currentView === 'dashboard') {
   }
 
   // Ideation View
-// ✅ IDEATION VIEW (Replace existing ideation return block ONLY)
+// ✅ IDEATION VIEW (Sequential Layout)
 if (currentView === 'ideation' && ideation) {
   return (
-    <div className="min-h-screen bg-[#0b0c15] text-white relative overflow-hidden px-8 py-10">
-
-  {/* Background Glow */}
-  <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_30%,rgba(124,58,237,0.20),transparent_65%)]"></div>
-  <div className="absolute inset-0 bg-[radial-gradient(circle_at_75%_70%,rgba(236,72,153,0.18),transparent_65%)]"></div>
-
-  <div className="max-w-6xl mx-auto relative z-10 space-y-10">
-
-    {/* Header Row */}
-    <div className="flex items-center justify-between">
-      <div>
-        <p className="text-xs uppercase tracking-widest text-purple-400/70 mb-1">
-          AI Blueprint
-        </p>
-        <h1 className="text-4xl font-extrabold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
-          {ideation.projectName}
-        </h1>
+    <div className="min-h-screen bg-gradient-to-br from-[#090b1a] via-[#0e1130] to-[#1a093b] text-white relative overflow-hidden">
+      {/* Background Effects */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-[-200px] right-[-100px] w-[500px] h-[500px] bg-purple-600/20 blur-[160px] animate-pulse" />
+        <div className="absolute bottom-[-200px] left-[-100px] w-[500px] h-[500px] bg-cyan-500/20 blur-[160px] animate-pulse" style={{ animationDelay: '1s' }} />
       </div>
 
-      <button
-        onClick={handleBack}
-        className="px-4 py-2 text-sm bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg transition flex items-center gap-2"
-      >
-        ✏️ Edit Prompt
-      </button>
-    </div>
-
-    {/* Description Card */}
-    <div className="backdrop-blur-md bg-white/5 border border-white/10 rounded-2xl p-6 text-gray-300 leading-relaxed shadow-[0_0_20px_rgba(122,58,237,0.25)]">
-      {ideation.description}
-    </div>
-
-    {/* Grid */}
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-
-      {/* Key Features */}
-      <div className="backdrop-blur-md bg-white/5 border border-white/10 rounded-2xl p-6 shadow-lg">
-        <h2 className="text-sm font-semibold text-purple-300 mb-4 flex items-center gap-2">
-          ✨ Key Features
-        </h2>
-        <ul className="space-y-3 text-gray-300 text-sm">
-          {ideation.features.map((f,i)=>(
-            <li key={i} className="flex gap-2">
-              <span className="text-pink-400">•</span> {f}
-            </li>
-          ))}
-        </ul>
-      </div>
-
-      {/* Colors */}
-      <div className="backdrop-blur-md bg-white/5 border border-white/10 rounded-2xl p-6 shadow-lg">
-        <h2 className="text-sm font-semibold text-purple-300 mb-4 flex items-center gap-2">
-          🎨 Color Theme
-        </h2>
-        <div className="flex gap-4 items-center">
-          {Object.entries(ideation.colorScheme)
-            .filter(([k]) => !["description"].includes(k))
-            .map(([k,v]) => (
-              <div key={k} className="flex flex-col items-center">
-                <div className="w-10 h-10 rounded-full border border-white/20" style={{background: v}}></div>
-                <small className="text-gray-400 text-xs mt-1">{k}</small>
+      <div className="relative z-10 max-w-4xl mx-auto px-6 py-8">
+        {/* Header Section */}
+        <div className="mb-8 flex items-center justify-between flex-wrap gap-4">
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <div className="absolute inset-0 bg-gradient-to-r from-cyan-500 via-purple-500 to-pink-500 blur-xl opacity-50" />
+              <div className="relative w-12 h-12 bg-gradient-to-br from-purple-500 to-cyan-500 rounded-xl flex items-center justify-center">
+                <Sparkles className="w-6 h-6 text-white" />
               </div>
-          ))}
+            </div>
+            <div>
+              <p className="text-xs uppercase tracking-widest text-purple-400/70 font-semibold">
+                AI Blueprint
+              </p>
+              <h1 className="text-4xl md:text-5xl font-extrabold bg-gradient-to-r from-cyan-300 via-purple-400 to-pink-400 bg-clip-text text-transparent mt-1">
+                {ideation.projectName}
+              </h1>
+            </div>
+          </div>
+
+          <button
+            onClick={handleBack}
+            className="px-5 py-2.5 text-sm bg-white/5 hover:bg-white/10 border border-white/10 hover:border-purple-500/50 rounded-xl transition-all duration-300 flex items-center gap-2 group backdrop-blur-md"
+          >
+            <ArrowLeft className="w-4 h-4 text-gray-400 group-hover:text-purple-400 transition-colors" />
+            <span className="text-gray-300 group-hover:text-white transition-colors font-medium">Back to Dashboard</span>
+          </button>
+        </div>
+
+        {/* Description - Small */}
+        <div className="mb-8 backdrop-blur-xl bg-white/5 border border-white/10 rounded-2xl p-6">
+          <p className="text-gray-300 leading-relaxed text-base">{ideation.description}</p>
+        </div>
+
+        {/* Features */}
+        <div className="mb-8 backdrop-blur-xl bg-white/5 border border-white/10 rounded-2xl p-6">
+          <div className="flex items-center gap-3 mb-5">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-pink-500/20 to-purple-500/20 border border-pink-400/30 flex items-center justify-center">
+              <Sparkles className="w-5 h-5 text-pink-300" />
+            </div>
+            <h2 className="text-xl font-bold text-white">Key Features</h2>
+          </div>
+          <ul className="space-y-3">
+            {ideation.features.map((f, i) => (
+              <li key={i} className="flex items-start gap-3">
+                <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-purple-500/20 to-pink-500/20 border border-purple-400/30 flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <CheckCircle className="w-3.5 h-3.5 text-purple-300" />
+                </div>
+                <span className="text-gray-300 text-sm leading-relaxed">{f}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        {/* Color Scheme */}
+        <div className="mb-8 backdrop-blur-xl bg-white/5 border border-white/10 rounded-2xl p-6">
+          <div className="flex items-center justify-between mb-5">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500/20 to-blue-500/20 border border-cyan-400/30 flex items-center justify-center">
+                <Palette className="w-5 h-5 text-cyan-300" />
+              </div>
+              <h2 className="text-xl font-bold text-white">Color Theme</h2>
+            </div>
+            <button
+              onClick={handleRegenerateColorScheme}
+              disabled={loading}
+              className="px-4 py-2 text-sm bg-white/5 hover:bg-white/10 border border-white/10 hover:border-purple-500/50 rounded-lg transition-all duration-300 flex items-center gap-2 group disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {loading ? (
+                <>
+                  <Loader className="w-4 h-4 animate-spin text-purple-400" />
+                  <span className="text-gray-300">Generating...</span>
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="w-4 h-4 text-gray-400 group-hover:text-purple-400 transition-colors" />
+                  <span className="text-gray-300 group-hover:text-white transition-colors">Change Colors</span>
+                </>
+              )}
+            </button>
+          </div>
+          <div className="flex flex-wrap gap-6">
+            {Object.entries(ideation.colorScheme)
+              .filter(([k]) => !["description"].includes(k))
+              .map(([k, v]) => (
+                <div key={k} className="flex flex-col items-center">
+                  <div 
+                    className="w-16 h-16 rounded-full border-2 border-white/20 shadow-lg" 
+                    style={{background: v}}
+                  />
+                  <small className="text-gray-400 text-xs mt-2 capitalize font-medium">{k}</small>
+                </div>
+              ))}
+          </div>
+        </div>
+
+        {/* Tech Stack */}
+        <div className="mb-8 backdrop-blur-xl bg-white/5 border border-white/10 rounded-2xl p-6">
+          <div className="flex items-center gap-3 mb-5">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500/20 to-cyan-500/20 border border-blue-400/30 flex items-center justify-center">
+              <Code className="w-5 h-5 text-blue-300" />
+            </div>
+            <h2 className="text-xl font-bold text-white">Tech Stack</h2>
+          </div>
+          <div className="space-y-4">
+            {ideation.techStack.frontend && ideation.techStack.frontend.length > 0 && (
+              <div>
+                <p className="text-xs text-purple-400 font-semibold mb-2 uppercase tracking-wide">Frontend</p>
+                <div className="flex flex-wrap gap-2">
+                  {ideation.techStack.frontend.map((tech, i) => (
+                    <span key={i} className="px-3 py-1.5 rounded-lg bg-purple-500/10 border border-purple-400/30 text-purple-300 text-sm font-medium">
+                      {tech}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+            {ideation.techStack.backend && ideation.techStack.backend.length > 0 && (
+              <div>
+                <p className="text-xs text-cyan-400 font-semibold mb-2 uppercase tracking-wide">Backend</p>
+                <div className="flex flex-wrap gap-2">
+                  {ideation.techStack.backend.map((tech, i) => (
+                    <span key={i} className="px-3 py-1.5 rounded-lg bg-cyan-500/10 border border-cyan-400/30 text-cyan-300 text-sm font-medium">
+                      {tech}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+            {ideation.techStack.database && ideation.techStack.database.length > 0 && (
+              <div>
+                <p className="text-xs text-pink-400 font-semibold mb-2 uppercase tracking-wide">Database</p>
+                <div className="flex flex-wrap gap-2">
+                  {ideation.techStack.database.map((tech, i) => (
+                    <span key={i} className="px-3 py-1.5 rounded-lg bg-pink-500/10 border border-pink-400/30 text-pink-300 text-sm font-medium">
+                      {tech}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Action Button */}
+        <div className="flex justify-end">
+          <button
+            onClick={handlePrototype}
+            className="group px-8 py-4 rounded-xl text-white font-bold bg-gradient-to-r from-purple-600 via-pink-600 to-cyan-600 hover:from-purple-500 hover:via-pink-500 hover:to-cyan-500 shadow-2xl shadow-purple-500/30 hover:shadow-purple-500/50 transition-all duration-300 flex items-center gap-3 hover:scale-105"
+          >
+            <Rocket className="w-5 h-5 group-hover:rotate-12 transition-transform" />
+            <span>Prototype This App</span>
+            <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+          </button>
         </div>
       </div>
-
-      {/* Tech */}
-      <div className="backdrop-blur-md bg-white/5 border border-white/10 rounded-2xl p-6 shadow-lg">
-        <h2 className="text-sm font-semibold text-purple-300 mb-4">💻 Tech Stack</h2>
-        <div className="text-sm space-y-2 text-gray-300">
-          <p><span className="text-purple-400">Frontend:</span> {ideation.techStack.frontend.join(", ")}</p>
-          <p><span className="text-purple-400">Backend:</span> {ideation.techStack.backend.join(", ")}</p>
-          {ideation.techStack.database && (
-            <p><span className="text-purple-400">Database:</span> {ideation.techStack.database.join(", ")}</p>
-          )}
-        </div>
-      </div>
-
-      {/* Audience */}
-      <div className="backdrop-blur-md bg-white/5 border border-white/10 rounded-2xl p-6 shadow-lg">
-        <h2 className="text-sm font-semibold text-purple-300 mb-4">🎯 Audience & USP</h2>
-        <p className="text-xs text-gray-400 mb-1">Target Users:</p>
-        <p className="text-sm text-gray-300 mb-4">{ideation.targetAudience}</p>
-        <p className="text-xs text-gray-400 mb-1">Unique Value:</p>
-        <p className="text-sm text-gray-300">{ideation.uniqueSellingPoint}</p>
-      </div>
-
     </div>
-
-    {/* Action */}
-    <div className="flex justify-end">
-      <button
-        onClick={handlePrototype}
-        className="px-6 py-3 rounded-xl text-white font-semibold bg-gradient-to-r from-purple-600 to-pink-500 hover:opacity-90 shadow-[0_0_20px_rgba(236,72,153,0.4)]"
-      >
-        🚀 Prototype This App
-      </button>
-    </div>
-
-  </div>
-</div>
-
   );
 }
 
@@ -2388,9 +2533,10 @@ if (currentView === 'ideation' && ideation) {
           <div className="flex items-center gap-4">
             <button
               onClick={handleBack}
-              className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg font-medium transition-colors"
+              className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg font-medium transition-colors flex items-center gap-2"
             >
-              ← Back to Ideation
+              <span>←</span>
+              <span>Back to Dashboard</span>
             </button>
             <div className="text-white">
               <span className="text-sm text-gray-400">Project: </span>
