@@ -2,12 +2,15 @@
 // Copy this entire file to replace your current src/components/VSCodeFileExplorer.jsx
 
 import React, { useState, useRef, useEffect } from 'react';
-import { ChevronRight, ChevronDown, File, Folder, FolderOpen, Plus, X, Save, Terminal as TerminalIcon, RefreshCw, AlertCircle, Code, Eye, Columns } from 'lucide-react';
+import { ChevronRight, ChevronDown, File, Folder, FolderOpen, Plus, X, Save, Terminal as TerminalIcon, RefreshCw, AlertCircle, Code, Eye, Columns, Rocket } from 'lucide-react';
 import Editor, { loader } from '@monaco-editor/react';
 import LivePreview from './LivePreview';
 import { FileText, CheckCircle } from 'lucide-react';
 import DocumentationViewer from './DocumentationViewer';
 import TestingAgentViewer from './TestingAgentViewer';
+import { useDeploymentAgent } from '../hooks/useDeploymentAgent';
+import DeploymentViewer from './DeploymentViewer';
+import { DeploymentProgressModal, DeploymentTargetModal } from './DeploymentModal';
 
 
 
@@ -78,6 +81,19 @@ const VSCodeFileExplorer = ({
   const [isGenerating, setIsGenerating] = useState(false);
   const [testSuite, setTestSuite] = useState(null);
   const [isGeneratingTests, setIsGeneratingTests] = useState(false);
+
+  const [showDeployModal, setShowDeployModal] = useState(false);
+  const [showDeployProgress, setShowDeployProgress] = useState(false);
+  const [showDeployViewer, setShowDeployViewer] = useState(false);
+  const [deploymentResult, setDeploymentResult] = useState(null);
+  const [selectedDeployTarget, setSelectedDeployTarget] = useState(null);
+
+  const { 
+    deployProject, 
+    addDeploymentToFiles, 
+    isDeploying, 
+    deploymentProgress 
+  } = useDeploymentAgent();
 
 
   // Configure Monaco loader
@@ -382,6 +398,30 @@ const VSCodeFileExplorer = ({
           text: `✅ No syntax errors in ${filePath.split('/').pop()}` 
         }];
       });
+    }
+  };
+
+  const handleDeploy = async (target) => {
+    try {
+      setSelectedDeployTarget(target);
+      setShowDeployProgress(true);
+      
+      const result = await deployProject(fileSystem, ideation, target);
+      
+      if (result.success) {
+        setDeploymentResult(result);
+        const filesWithDeployment = addDeploymentToFiles(
+          fileSystem, 
+          result.config, 
+          target
+        );
+        setGeneratedFiles(filesWithDeployment);
+        setShowDeployProgress(false);
+        setShowDeployViewer(true);
+      }
+    } catch (error) {
+      console.error('Deployment error:', error);
+      setShowDeployProgress(false);
     }
   };
 
@@ -1220,6 +1260,20 @@ const handleViewTests = () => {
                 >
                   <RefreshCw size={16} className="text-gray-400" />
                 </button>
+
+                {/* Deployment Action */}
+                <div className="flex items-center gap-1 px-2 py-1 bg-white/5 rounded-lg border border-white/10">
+                  <Rocket size={14} className="text-green-400" />
+                  <span className="text-xs text-gray-400 mr-2">Deploy</span>
+                  
+                  <button
+                    onClick={() => setShowDeployModal(true)}
+                    className="px-2 py-1 bg-green-600/20 hover:bg-green-600/40 text-green-300 rounded text-xs transition-colors"
+                    title="Deploy Application"
+                  >
+                    Deploy
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -1486,6 +1540,38 @@ const handleViewTests = () => {
       onRunTests={() => console.log("🧪 Running all tests...")}
     />
   </div>
+)}
+
+{/* Deployment Target Selection */}
+<DeploymentTargetModal
+  isOpen={showDeployModal}
+  onClose={() => setShowDeployModal(false)}
+  onSelect={handleDeploy}
+/>
+
+{/* Deployment Progress */}
+<DeploymentProgressModal
+  isOpen={showDeployProgress}
+  onClose={() => {
+    if (deploymentProgress.percentage === 100) {
+      setShowDeployProgress(false);
+      setShowDeployViewer(true);
+    }
+  }}
+  progress={deploymentProgress}
+/>
+
+{/* Deployment Dashboard */}
+{showDeployViewer && deploymentResult && (
+  <DeploymentViewer
+    deploymentResult={deploymentResult}
+    deploymentConfig={deploymentResult.config}
+    onClose={() => setShowDeployViewer(false)}
+    onRedeploy={() => {
+      setShowDeployViewer(false);
+      handleDeploy(selectedDeployTarget);
+    }}
+  />
 )}
 </div>
 
