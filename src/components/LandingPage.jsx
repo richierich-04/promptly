@@ -54,7 +54,7 @@ const HeroParallax = ({ products }) => {
       {/* Header Section */}
       <div className="max-w-7xl relative mx-auto py-20 md:py-40 px-4 w-full left-0 top-0">
         <h1 className="text-5xl md:text-7xl font-bold mb-6 bg-gradient-to-br from-purple-400 via-pink-400 to-blue-400 bg-clip-text text-transparent">
-          AI-Powered Development Platform
+          AI Powered Software Development Platform
         </h1>
         <p className="max-w-2xl text-xl md:text-2xl mt-8 text-gray-300">
           Transform your workflow with intelligent agents that code, test, debug, document, and deploy

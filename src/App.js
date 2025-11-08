@@ -17,6 +17,8 @@ import { logOut } from './firebase/auth';
 import LandingPage from './components/LandingPage.jsx'
 import toast, { Toaster } from 'react-hot-toast';
 import ProjectPage from './components/ProjectPage';
+import AutomatedWorkflow from './components/AutomatedWorkflow';
+import AutomatedProgressTracker from './components/AutomatedProgressTracker';
 
 
 
@@ -556,6 +558,9 @@ function AppContent() {
   const [currentProject, setCurrentProject] = useState(null);
   const [viewTransitionLoading, setViewTransitionLoading] = useState(false);
   const [showLanding, setShowLanding] = useState(true);
+  const [workflowMode, setWorkflowMode] = useState(null); // 'automated' or 'manual'
+  const [automatedStages, setAutomatedStages] = useState([]);
+  const [isAutomating, setIsAutomating] = useState(false);
 
   // Add this new handler function
   const handleRunAgent = async (agentId) => {
@@ -2011,6 +2016,120 @@ const handleGenerateIdeation = async (userPrompt) => {
 
 };
 
+const handleAutomatedWorkflow = async (userPrompt) => {
+  setIsAutomating(true);
+  setWorkflowMode('automated');
+  setCurrentView('automated-progress');
+  setPrompt(userPrompt);
+  
+  const stages = [
+    { id: 'ideation', name: 'Ideation Agent', description: 'Analyzing your idea and creating project blueprint', completed: false, progress: 0, tasks: [] },
+    { id: 'coding', name: 'Coding Agent', description: 'Generating complete application code', completed: false, progress: 0, tasks: [] },
+    { id: 'documentation', name: 'Documentation Agent', description: 'Creating comprehensive documentation', completed: false, progress: 0, tasks: [] },
+    { id: 'testing', name: 'Testing Agent', description: 'Generating test suite and quality analysis', completed: false, progress: 0, tasks: [] },
+    { id: 'deployment', name: 'Deployment Agent', description: 'Preparing deployment configurations', completed: false, progress: 0, tasks: [] }
+  ];
+  
+  setAutomatedStages(stages);
+  
+  try {
+    // Stage 1: Ideation
+    setAutomatedStages(prev => prev.map(s => 
+      s.id === 'ideation' ? { ...s, progress: 20, tasks: [{ name: 'Analyzing prompt...', completed: false }] } : s
+    ));
+    
+    const ideationData = await generateIdeation(userPrompt);
+    if (!ideationData) throw new Error('Ideation failed');
+    
+    setIdeation(ideationData);
+    setAutomatedStages(prev => prev.map(s => 
+      s.id === 'ideation' ? { ...s, completed: true, progress: 100, duration: '15s' } : s
+    ));
+    
+    // Stage 2: Code Generation
+    setAutomatedStages(prev => prev.map(s => 
+      s.id === 'coding' ? { ...s, progress: 30, tasks: [{ name: 'Generating code structure...', completed: false }] } : s
+    ));
+    
+    const files = await generateFilesFromIdeation();
+    if (!files) throw new Error('Code generation failed');
+    
+    setGeneratedFiles(files);
+    setAutomatedStages(prev => prev.map(s => 
+      s.id === 'coding' ? { ...s, completed: true, progress: 100, duration: '45s' } : s
+    ));
+    
+    // Stage 3: Documentation
+    setAutomatedStages(prev => prev.map(s => 
+      s.id === 'documentation' ? { ...s, progress: 40, tasks: [{ name: 'Analyzing codebase...', completed: false }] } : s
+    ));
+    
+    const docs = await generateDocumentation(ideationData, files);
+    setGeneratedDocs(docs);
+    const filesWithDocs = addDocumentationToFiles(files, docs);
+    setGeneratedFiles(filesWithDocs);
+    
+    setAutomatedStages(prev => prev.map(s => 
+      s.id === 'documentation' ? { ...s, completed: true, progress: 100, duration: '20s' } : s
+    ));
+    
+    // Stage 4: Testing
+    setAutomatedStages(prev => prev.map(s => 
+      s.id === 'testing' ? { ...s, progress: 50, tasks: [{ name: 'Generating test suites...', completed: false }] } : s
+    ));
+    
+    const tests = await generateTestSuite(filesWithDocs);
+    setTestSuite(tests);
+    const filesWithTests = addTestsToFileStructure(filesWithDocs, tests);
+    setGeneratedFiles(filesWithTests);
+    
+    setAutomatedStages(prev => prev.map(s => 
+      s.id === 'testing' ? { ...s, completed: true, progress: 100, duration: '30s' } : s
+    ));
+    
+    // Stage 5: Deployment Config
+    setAutomatedStages(prev => prev.map(s => 
+      s.id === 'deployment' ? { ...s, progress: 60, tasks: [{ name: 'Preparing deployment configs...', completed: false }] } : s
+    ));
+    
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    setAutomatedStages(prev => prev.map(s => 
+      s.id === 'deployment' ? { ...s, completed: true, progress: 100, duration: '10s' } : s
+    ));
+    
+    // Save project
+    const { projectId } = await createProject(currentUser.uid, {
+      name: ideationData.projectName,
+      description: ideationData.description,
+      ideation: ideationData,
+      fileStructure: filesWithTests,
+      documentation: docs,
+      testSuite: tests,
+      prompt: userPrompt,
+      status: 'completed',
+      lastOpened: new Date(),
+    });
+    
+    setCurrentProject({ id: projectId, ...ideationData });
+    
+    // Transition to editor after 2 seconds
+    setTimeout(() => {
+      setCurrentView('editor');
+      setIsAutomating(false);
+      toast.success('🎉 Project generated successfully!');
+    }, 2000);
+    
+  } catch (error) {
+    console.error('Automated workflow error:', error);
+    setError(error.message);
+    setAutomatedStages(prev => prev.map(s => 
+      !s.completed ? { ...s, error: error.message } : s
+    ));
+    setIsAutomating(false);
+  }
+};
+
   const handleRegenerateColorScheme = async () => {
     if (!ideation || !prompt) {
       alert('Unable to regenerate color scheme. Please try again.');
@@ -2468,16 +2587,76 @@ if (currentView === 'dashboard') {
   }
 
   // Prompt View
-  if (currentView === 'prompt') {
-    return (
+  // Prompt View
+if (currentView === 'prompt') {
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-[#090b1a] via-[#0e1130] to-[#1a093b]">
       <PromptView
-        onGenerateIdeation={handleGenerateIdeation}
+        onGenerateIdeation={(userPrompt) => {
+          setPrompt(userPrompt);
+          setCurrentView('workflow-selection');
+        }}
         loading={loading}
         error={error}
         onBack={() => setCurrentView('dashboard')}
       />
-    );
-  }
+    </div>
+  );
+}
+
+// Workflow Selection View (NEW)
+if (currentView === 'workflow-selection') {
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-[#090b1a] via-[#0e1130] to-[#1a093b]">
+      <AutomatedWorkflow
+        onAutomate={() => {
+          if (!prompt.trim()) {
+            alert('Please enter a prompt first!');
+            return;
+          }
+          handleAutomatedWorkflow(prompt);
+        }}
+        onManual={async () => {
+          setWorkflowMode('manual');
+          setCurrentView('transition-to-ideation');
+          const ideationData = await generateIdeation(prompt);
+          if (ideationData) {
+            setIdeation(ideationData);
+            setTimeout(() => {
+              setCurrentView('ideation');
+              setTimeout(() => setShowIdeation(true), 150);
+            }, 900);
+            
+            const { projectId } = await createProject(currentUser.uid, {
+              name: ideationData.projectName,
+              description: ideationData.description,
+              ideation: ideationData,
+              prompt: prompt,
+              status: 'ideation',
+              lastOpened: new Date(),
+            });
+            
+            setCurrentProject({ id: projectId, ...ideationData });
+          } else {
+            setCurrentView('prompt');
+          }
+        }}
+        loading={loading || isAutomating}
+      />
+    </div>
+  );
+}
+
+// Automated Progress View (NEW)
+if (currentView === 'automated-progress') {
+  return (
+    <AutomatedProgressTracker
+      currentStage={automatedStages.find(s => !s.completed && !s.error)?.id}
+      stages={automatedStages}
+      error={error}
+    />
+  );
+}
 
   // Add after the dashboard view check
 if (currentView === 'project-page' && currentProject) {
