@@ -1,149 +1,17 @@
 import React, { useState, useEffect } from "react";
 import {
   Plus, Search, Folder, Clock, Trash2, Edit, Copy, MoreVertical,
-  Grid, List, TrendingUp, Code, Loader, Star, FileText, CheckCircle, AlertCircle, Sparkles, LogOut, User
+  Grid, List, TrendingUp, Code, Loader, Star, FileText, CheckCircle, 
+  AlertCircle, Sparkles, LogOut, User, Save
 } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
-
-// --- MOCK SERVICE (replace with Firestore in real app) ---
-const projectService = {
-    getUserProjects: async (userId) => {
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      return {
-        success: true,
-        projects: [
-          {
-            id: '1',
-            name: 'E-commerce Platform',
-            description: 'Full-stack online store with cart and payments',
-            status: 'in-progress',
-            createdAt: new Date('2024-01-10'),
-            updatedAt: new Date('2024-01-15'),
-            lastAccessedAt: new Date('2024-01-15'),
-            techStack: {
-              frontend: ['React', 'Tailwind CSS'],
-              backend: ['Node.js', 'Express'],
-              database: ['MongoDB']
-            },
-            thumbnail: null,
-            progress: 75,
-            filesCount: 24,
-            linesOfCode: 3420
-          },
-          {
-            id: '2',
-            name: 'Task Manager Pro',
-            description: 'Productivity app with AI suggestions',
-            status: 'completed',
-            createdAt: new Date('2024-01-08'),
-            updatedAt: new Date('2024-01-14'),
-            lastAccessedAt: new Date('2024-01-14'),
-            techStack: {
-              frontend: ['React', 'Redux'],
-              backend: ['Firebase']
-            },
-            progress: 100,
-            filesCount: 18,
-            linesOfCode: 2150
-          },
-          {
-            id: '3',
-            name: 'Portfolio Website',
-            description: 'Modern portfolio with animations',
-            status: 'draft',
-            createdAt: new Date('2024-01-12'),
-            updatedAt: new Date('2024-01-12'),
-            lastAccessedAt: new Date('2024-01-12'),
-            techStack: {
-              frontend: ['React', 'Framer Motion']
-            },
-            progress: 30,
-            filesCount: 8,
-            linesOfCode: 850
-          },
-          {
-            id: '4',
-            name: 'Weather Dashboard',
-            description: 'Real-time weather with maps',
-            status: 'in-progress',
-            createdAt: new Date('2024-01-09'),
-            updatedAt: new Date('2024-01-13'),
-            lastAccessedAt: new Date('2024-01-13'),
-            techStack: {
-              frontend: ['React'],
-              backend: ['OpenWeather API']
-            },
-            progress: 60,
-            filesCount: 12,
-            linesOfCode: 1540
-          },
-          {
-            id: '5',
-            name: 'Social Media App',
-            description: 'Connect with friends and share moments',
-            status: 'in-progress',
-            createdAt: new Date('2024-01-05'),
-            updatedAt: new Date('2024-01-11'),
-            lastAccessedAt: new Date('2024-01-11'),
-            techStack: {
-              frontend: ['React', 'Redux'],
-              backend: ['Node.js', 'Socket.io'],
-              database: ['PostgreSQL']
-            },
-            progress: 45,
-            filesCount: 32,
-            linesOfCode: 4200
-          },
-          {
-            id: '6',
-            name: 'Recipe Finder',
-            description: 'Discover and save delicious recipes',
-            status: 'completed',
-            createdAt: new Date('2024-01-03'),
-            updatedAt: new Date('2024-01-10'),
-            lastAccessedAt: new Date('2024-01-10'),
-            techStack: {
-              frontend: ['React'],
-              backend: ['Spoonacular API']
-            },
-            progress: 100,
-            filesCount: 15,
-            linesOfCode: 1890
-          }
-        ]
-      };
-    },
-    
-    deleteProject: async (projectId) => {
-      await new Promise(resolve => setTimeout(resolve, 500));
-      return { success: true };
-    },
-    
-    duplicateProject: async (projectId, userId) => {
-      await new Promise(resolve => setTimeout(resolve, 500));
-      return { success: true, projectId: 'new-' + projectId };
-    },
-    
-    updateLastAccessed: async (projectId) => {
-      await new Promise(resolve => setTimeout(resolve, 200));
-      return { success: true };
-    },
-    
-    getProjectStats: async (userId) => {
-      await new Promise(resolve => setTimeout(resolve, 500));
-      return {
-        success: true,
-        stats: {
-          totalProjects: 6,
-          draftProjects: 1,
-          inProgressProjects: 3,
-          completedProjects: 2,
-          totalLines: 14050,
-          totalFiles: 109
-        }
-      };
-    }
-  };
+import { 
+  getUserProjects, 
+  deleteProject, 
+  duplicateProject, 
+  updateLastAccessed,
+  getProjectStats 
+} from "../services/projectService";
 
 const Dashboard = ({ onNewProject, onOpenProject, onLogout }) => {
   const { currentUser } = useAuth();
@@ -156,8 +24,10 @@ const Dashboard = ({ onNewProject, onOpenProject, onLogout }) => {
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [selectedProject, setSelectedProject] = useState(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [projectToDelete, setProjectToDelete] = useState(null);
   const [actionLoading, setActionLoading] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     if (currentUser) {
@@ -166,38 +36,152 @@ const Dashboard = ({ onNewProject, onOpenProject, onLogout }) => {
     }
   }, [currentUser]);
 
-  useEffect(() => filterProjects(), [projects, searchQuery, filterStatus]);
+  useEffect(() => {
+    filterProjects();
+  }, [projects, searchQuery, filterStatus]);
 
   const loadProjects = async () => {
     setLoading(true);
-    const { success, projects: data } = await projectService.getUserProjects(currentUser.uid);
-    if (success) setProjects(data);
-    setLoading(false);
+    setError(null);
+    
+    try {
+      const { success, projects: data, error: fetchError } = await getUserProjects(currentUser.uid);
+      
+      if (success) {
+        setProjects(data);
+      } else {
+        setError(fetchError || 'Failed to load projects');
+      }
+    } catch (err) {
+      console.error('Error loading projects:', err);
+      setError('An unexpected error occurred');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const loadStats = async () => {
-    const { success, stats } = await projectService.getProjectStats(currentUser.uid);
-    if (success) setStats(stats);
+    try {
+      const { success, stats: projectStats } = await getProjectStats(currentUser.uid);
+      
+      if (success) {
+        setStats(projectStats);
+      }
+    } catch (err) {
+      console.error('Error loading stats:', err);
+    }
   };
 
   const filterProjects = () => {
-    let f = [...projects];
-    if (filterStatus !== "all") f = f.filter(p => p.status === filterStatus);
-    if (searchQuery.trim())
-      f = f.filter(p =>
-        p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        p.description?.toLowerCase().includes(searchQuery.toLowerCase())
+    let filtered = [...projects];
+    
+    // Filter by status
+    if (filterStatus !== "all") {
+      filtered = filtered.filter(p => p.status === filterStatus);
+    }
+    
+    // Filter by search query
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(p =>
+        p.name?.toLowerCase().includes(query) ||
+        p.description?.toLowerCase().includes(query) ||
+        p.ideation?.projectName?.toLowerCase().includes(query)
       );
-    setFilteredProjects(f);
+    }
+    
+    setFilteredProjects(filtered);
+  };
+
+  const handleDeleteProject = async (project) => {
+    setProjectToDelete(project);
+    setShowDeleteModal(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!projectToDelete) return;
+    
+    setActionLoading(true);
+    
+    try {
+      const { success, error } = await deleteProject(projectToDelete.id);
+      
+      if (success) {
+        // Remove from local state
+        setProjects(prev => prev.filter(p => p.id !== projectToDelete.id));
+        setShowDeleteModal(false);
+        setProjectToDelete(null);
+        setSelectedProject(null);
+        
+        // Reload stats
+        loadStats();
+      } else {
+        alert(`Failed to delete project: ${error}`);
+      }
+    } catch (err) {
+      console.error('Delete error:', err);
+      alert('An error occurred while deleting the project');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleDuplicateProject = async (projectId) => {
+    setActionLoading(true);
+    
+    try {
+      const { success, projectId: newProjectId, error } = await duplicateProject(
+        projectId, 
+        currentUser.uid
+      );
+      
+      if (success) {
+        // Reload projects to show the duplicate
+        await loadProjects();
+        setSelectedProject(null);
+      } else {
+        alert(`Failed to duplicate project: ${error}`);
+      }
+    } catch (err) {
+      console.error('Duplicate error:', err);
+      alert('An error occurred while duplicating the project');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleOpenProject = async (project) => {
+    try {
+      // Update last accessed time
+      await updateLastAccessed(project.id);
+      
+      // Call the parent handler
+      onOpenProject(project);
+    } catch (err) {
+      console.error('Error opening project:', err);
+      // Still open the project even if timestamp update fails
+      onOpenProject(project);
+    }
   };
 
   const formatDate = (date) => {
-    const diff = Math.floor((new Date() - date) / (1000 * 60 * 60 * 24));
-    if (diff === 0) return "Today";
-    if (diff === 1) return "Yesterday";
-    if (diff < 7) return `${diff} days ago`;
-    if (diff < 30) return `${Math.floor(diff / 7)} weeks ago`;
-    return date.toLocaleDateString();
+    if (!date) return 'Unknown';
+    
+    const now = new Date();
+    const projectDate = date instanceof Date ? date : new Date(date);
+    const diffMs = now - projectDate;
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    
+    if (diffDays === 0) return "Today";
+    if (diffDays === 1) return "Yesterday";
+    if (diffDays < 7) return `${diffDays} days ago`;
+    if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks ago`;
+    
+    return projectDate.toLocaleDateString('en-US', { 
+      month: 'short', 
+      day: 'numeric', 
+      year: 'numeric' 
+    });
   };
 
   const statusBadge = (status) => {
@@ -208,6 +192,7 @@ const Dashboard = ({ onNewProject, onOpenProject, onLogout }) => {
     };
     const item = map[status];
     if (!item) return null;
+    
     return (
       <span className={`px-2 py-1 rounded-full text-xs border ${item.color}`}>
         {item.label}
@@ -215,14 +200,65 @@ const Dashboard = ({ onNewProject, onOpenProject, onLogout }) => {
     );
   };
 
+  const getProgressFromStatus = (status) => {
+    const progressMap = {
+      'draft': 30,
+      'in-progress': 60,
+      'completed': 100
+    };
+    return progressMap[status] || 0;
+  };
+
   const progressColor = (v) =>
     v >= 80 ? "bg-gradient-to-r from-green-500 to-emerald-500" :
     v >= 50 ? "bg-gradient-to-r from-blue-500 to-cyan-500" :
-    v >= 30 ? "bg-gradient-to-r from-yellow-500 to-orange-500" : "bg-gradient-to-r from-gray-500 to-gray-600";
+    v >= 30 ? "bg-gradient-to-r from-yellow-500 to-orange-500" : 
+    "bg-gradient-to-r from-gray-500 to-gray-600";
+
+  const getTechStackFromProject = (project) => {
+    if (project.techStack?.frontend) {
+      return project.techStack.frontend;
+    }
+    if (project.ideation?.techStack?.frontend) {
+      return project.ideation.techStack.frontend;
+    }
+    return ['React'];
+  };
+
+  const countFiles = (fileStructure) => {
+    if (!fileStructure) return 0;
+    
+    let count = 0;
+    const traverse = (node) => {
+      if (node.type === 'file') count++;
+      if (node.children) {
+        node.children.forEach(traverse);
+      }
+    };
+    
+    traverse(fileStructure);
+    return count;
+  };
+
+  const countLines = (fileStructure) => {
+    if (!fileStructure) return 0;
+    
+    let lines = 0;
+    const traverse = (node) => {
+      if (node.type === 'file' && node.content) {
+        lines += node.content.split('\n').length;
+      }
+      if (node.children) {
+        node.children.forEach(traverse);
+      }
+    };
+    
+    traverse(fileStructure);
+    return lines;
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#090b1a] via-[#0e1130] to-[#1a093b] text-white relative overflow-hidden">
-
       {/* Animated Background Effects */}
       <div className="pointer-events-none absolute inset-0">
         <div className="absolute top-[-200px] right-[-100px] w-[400px] h-[400px] bg-purple-600/15 blur-[160px] animate-pulse" />
@@ -329,7 +365,6 @@ const Dashboard = ({ onNewProject, onOpenProject, onLogout }) => {
 
       {/* CONTENT */}
       <div className="max-w-7xl mx-auto px-6 py-10">
-
         {/* Stats */}
         {stats && (
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-10">
@@ -337,7 +372,7 @@ const Dashboard = ({ onNewProject, onOpenProject, onLogout }) => {
               { label: "Total Projects", v: stats.totalProjects, icon: Folder, gradient: "from-purple-500 to-pink-500" },
               { label: "In Progress", v: stats.inProgressProjects, icon: TrendingUp, gradient: "from-blue-500 to-cyan-500" },
               { label: "Completed", v: stats.completedProjects, icon: CheckCircle, gradient: "from-green-500 to-emerald-500" },
-              { label: "Lines of Code", v: stats.totalLines.toLocaleString(), icon: Code, gradient: "from-orange-500 to-yellow-500" },
+              { label: "Tech Stacks", v: Object.keys(stats.techStacks || {}).length, icon: Code, gradient: "from-orange-500 to-yellow-500" },
             ].map((s, i) => (
               <div key={i}
                 className="group p-6 rounded-2xl bg-white/5 backdrop-blur-md border border-white/10 hover:border-white/20 hover:bg-white/10 transition-all shadow-lg hover:shadow-2xl hover:scale-105"
@@ -376,6 +411,14 @@ const Dashboard = ({ onNewProject, onOpenProject, onLogout }) => {
           </button>
         </div>
 
+        {/* Error Message */}
+        {error && (
+          <div className="mb-6 p-4 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 flex items-center gap-2">
+            <AlertCircle className="w-5 h-5" />
+            <span>{error}</span>
+          </div>
+        )}
+
         {/* Loading State */}
         {loading ? (
           <div className="flex items-center justify-center py-20">
@@ -388,14 +431,22 @@ const Dashboard = ({ onNewProject, onOpenProject, onLogout }) => {
           <div className="flex items-center justify-center py-20">
             <div className="text-center">
               <Folder className="w-16 h-16 text-gray-600 mx-auto mb-4" />
-              <h3 className="text-xl font-semibold text-gray-300 mb-2">No projects found</h3>
-              <p className="text-gray-500 mb-6">Create your first project to get started</p>
-              <button
-                onClick={onNewProject}
-                className="px-6 py-3 rounded-xl bg-gradient-to-r from-purple-600 to-cyan-600 hover:from-purple-500 hover:to-cyan-500 text-white font-semibold transition-all shadow-lg"
-              >
-                Create Project
-              </button>
+              <h3 className="text-xl font-semibold text-gray-300 mb-2">
+                {searchQuery ? 'No projects found' : 'No projects yet'}
+              </h3>
+              <p className="text-gray-500 mb-6">
+                {searchQuery 
+                  ? 'Try adjusting your search terms' 
+                  : 'Create your first project to get started'}
+              </p>
+              {!searchQuery && (
+                <button
+                  onClick={onNewProject}
+                  className="px-6 py-3 rounded-xl bg-gradient-to-r from-purple-600 to-cyan-600 hover:from-purple-500 hover:to-cyan-500 text-white font-semibold transition-all shadow-lg"
+                >
+                  Create Project
+                </button>
+              )}
             </div>
           </div>
         ) : (
@@ -403,105 +454,160 @@ const Dashboard = ({ onNewProject, onOpenProject, onLogout }) => {
             ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
             : "space-y-4"
           }>
-            {filteredProjects.map(p => (
-              <div
-                key={p.id}
-                className="group relative p-6 rounded-2xl bg-white/5 backdrop-blur-lg border border-white/10 hover:border-purple-400/40 hover:bg-white/10 hover:shadow-2xl hover:shadow-purple-500/20 transition-all cursor-pointer"
-                onClick={() => onOpenProject(p)}
-              >
-                {/* Menu Button */}
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setSelectedProject(selectedProject === p.id ? null : p.id);
-                  }}
-                  className="absolute top-4 right-4 p-2 hover:bg-white/10 rounded-lg transition-all"
+            {filteredProjects.map(p => {
+              const progress = getProgressFromStatus(p.status);
+              const techStack = getTechStackFromProject(p);
+              const filesCount = countFiles(p.fileStructure);
+              const linesOfCode = countLines(p.fileStructure);
+              const displayName = p.name || p.ideation?.projectName || 'Untitled Project';
+              const displayDesc = p.description || p.ideation?.description || '';
+
+              return (
+                <div
+                  key={p.id}
+                  className="group relative p-6 rounded-2xl bg-white/5 backdrop-blur-lg border border-white/10 hover:border-purple-400/40 hover:bg-white/10 hover:shadow-2xl hover:shadow-purple-500/20 transition-all cursor-pointer"
+                  onClick={() => handleOpenProject(p)}
                 >
-                  <MoreVertical className="w-4 h-4 text-gray-400 group-hover:text-white" />
-                </button>
+                  {/* Menu Button */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedProject(selectedProject === p.id ? null : p.id);
+                    }}
+                    className="absolute top-4 right-4 p-2 hover:bg-white/10 rounded-lg transition-all"
+                  >
+                    <MoreVertical className="w-4 h-4 text-gray-400 group-hover:text-white" />
+                  </button>
 
-                {selectedProject === p.id && (
-                  <div className="absolute right-4 top-12 bg-gray-900/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl z-10 overflow-hidden">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation(); 
-                      }}
-                      className="flex items-center gap-2 px-4 py-3 text-sm hover:bg-white/10 w-full text-left transition-colors"
-                    >
-                      <Copy className="w-4 h-4" /> Duplicate
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setShowDeleteModal(true);
-                      }}
-                      className="flex items-center gap-2 px-4 py-3 text-sm text-red-400 hover:bg-red-500/10 w-full text-left transition-colors"
-                    >
-                      <Trash2 className="w-4 h-4" /> Delete
-                    </button>
-                  </div>
-                )}
-
-                {/* Project Content */}
-                <div className="mb-4">
-                  <h3 className="text-lg font-semibold text-white group-hover:text-purple-300 transition-colors mb-2">
-                    {p.name}
-                  </h3>
-                  <p className="text-sm text-gray-400 line-clamp-2">{p.description}</p>
-                </div>
-
-                {/* Progress */}
-                <div className="mb-4">
-                  <div className="flex justify-between text-xs text-gray-400 mb-2">
-                    <span>Progress</span>
-                    <span className="font-semibold">{p.progress}%</span>
-                  </div>
-                  <div className="h-2 bg-white/5 rounded-full overflow-hidden">
-                    <div
-                      className={`h-full ${progressColor(p.progress)} transition-all duration-500`}
-                      style={{ width: `${p.progress}%` }}
-                    />
-                  </div>
-                </div>
-
-                {/* Tech Stack */}
-                <div className="flex flex-wrap gap-2 mb-4">
-                  {p.techStack.frontend?.slice(0, 3).map((t, i) => (
-                    <span
-                      key={i}
-                      className="text-xs px-2 py-1 rounded-lg border border-purple-400/30 text-purple-300 bg-purple-500/10 backdrop-blur-sm"
-                    >
-                      {t}
-                    </span>
-                  ))}
-                </div>
-
-                {/* Footer */}
-                <div className="flex items-center justify-between text-xs text-gray-400 pt-4 border-t border-white/10">
-                  <div className="flex items-center gap-4">
-                    <span className="flex items-center gap-1">
-                      <FileText className="w-3 h-3" /> {p.filesCount}
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <Code className="w-3 h-3" /> {p.linesOfCode.toLocaleString()}
-                    </span>
-                  </div>
-                  {statusBadge(p.status)}
-                </div>
-
-                <div className="flex items-center justify-between mt-3 text-xs text-gray-500">
-                  <span className="flex items-center gap-1">
-                    <Clock className="w-3 h-3" /> {formatDate(p.lastAccessedAt)}
-                  </span>
-                  {p.progress === 100 && (
-                    <Star className="w-4 h-4 text-yellow-400 fill-yellow-400" />
+                  {selectedProject === p.id && (
+                    <div className="absolute right-4 top-12 bg-gray-900/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl z-10 overflow-hidden">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDuplicateProject(p.id);
+                        }}
+                        disabled={actionLoading}
+                        className="flex items-center gap-2 px-4 py-3 text-sm hover:bg-white/10 w-full text-left transition-colors disabled:opacity-50"
+                      >
+                        <Copy className="w-4 h-4" /> Duplicate
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteProject(p);
+                        }}
+                        disabled={actionLoading}
+                        className="flex items-center gap-2 px-4 py-3 text-sm text-red-400 hover:bg-red-500/10 w-full text-left transition-colors disabled:opacity-50"
+                      >
+                        <Trash2 className="w-4 h-4" /> Delete
+                      </button>
+                    </div>
                   )}
+
+                  {/* Project Content */}
+                  <div className="mb-4">
+                    <h3 className="text-lg font-semibold text-white group-hover:text-purple-300 transition-colors mb-2">
+                      {displayName}
+                    </h3>
+                    <p className="text-sm text-gray-400 line-clamp-2">{displayDesc}</p>
+                  </div>
+
+                  {/* Progress */}
+                  <div className="mb-4">
+                    <div className="flex justify-between text-xs text-gray-400 mb-2">
+                      <span>Progress</span>
+                      <span className="font-semibold">{progress}%</span>
+                    </div>
+                    <div className="h-2 bg-white/5 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full ${progressColor(progress)} transition-all duration-500`}
+                        style={{ width: `${progress}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Tech Stack */}
+                  <div className="flex flex-wrap gap-2 mb-4">
+                    {techStack.slice(0, 3).map((t, i) => (
+                      <span
+                        key={i}
+                        className="text-xs px-2 py-1 rounded-lg border border-purple-400/30 text-purple-300 bg-purple-500/10 backdrop-blur-sm"
+                      >
+                        {t}
+                      </span>
+                    ))}
+                  </div>
+
+                  {/* Footer */}
+                  <div className="flex items-center justify-between text-xs text-gray-400 pt-4 border-t border-white/10">
+                    <div className="flex items-center gap-4">
+                      {filesCount > 0 && (
+                        <span className="flex items-center gap-1">
+                          <FileText className="w-3 h-3" /> {filesCount}
+                        </span>
+                      )}
+                      {linesOfCode > 0 && (
+                        <span className="flex items-center gap-1">
+                          <Code className="w-3 h-3" /> {linesOfCode.toLocaleString()}
+                        </span>
+                      )}
+                    </div>
+                    {statusBadge(p.status)}
+                  </div>
+
+                  <div className="flex items-center justify-between mt-3 text-xs text-gray-500">
+                    <span className="flex items-center gap-1">
+                      <Clock className="w-3 h-3" /> {formatDate(p.lastAccessedAt)}
+                    </span>
+                    {p.status === 'completed' && (
+                      <Star className="w-4 h-4 text-yellow-400 fill-yellow-400" />
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-gray-900 rounded-2xl p-6 max-w-md w-full mx-4 border border-white/10">
+            <h3 className="text-xl font-bold text-white mb-3">Delete Project?</h3>
+            <p className="text-gray-400 mb-6">
+              Are you sure you want to delete "{projectToDelete?.name || projectToDelete?.ideation?.projectName}"? 
+              This action cannot be undone.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setShowDeleteModal(false);
+                  setProjectToDelete(null);
+                }}
+                disabled={actionLoading}
+                className="flex-1 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDelete}
+                disabled={actionLoading}
+                className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {actionLoading ? (
+                  <>
+                    <Loader className="w-4 h-4 animate-spin" />
+                    Deleting...
+                  </>
+                ) : (
+                  'Delete'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <style jsx>{`
         @keyframes fade-in {
