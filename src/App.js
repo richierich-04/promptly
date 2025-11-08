@@ -740,28 +740,15 @@ COLORS: Primary=${ideation.colorScheme.primary}, Secondary=${ideation.colorSchem
         body: JSON.stringify({
           contents: [{
             parts: [{
-              text: `You are an expert React developer. Create a COMPLETE, WORKING, PRODUCTION-READY single-page application.
+              text: `You are an expert full-stack front-end engineer and product designer who builds polished, production-quality React applications that look and feel like modern SaaS platforms (e.g. Loveable-like interfaces). Generate a COMPLETE, FUNCTIONAL, visually-refined React application based on the project idea below.
 
 ${ideationContext}
 
-CRITICAL REQUIREMENTS:
-1. Build REAL functionality - users must be able to interact and see results
-2. Implement ALL ${ideation.features.length} features with actual working code
-3. Use React hooks (useState, useEffect) for state management
-4. Make it fully responsive and modern
-5. Include proper error handling
-6. Use the specified color scheme
-7. Add animations and smooth transitions
+GOAL:
+Deliver a single, ready-to-run React application that is product-polished: high-quality UI, consistent design system, responsive layout, accessible, micro-interactions, and real working features (not stubs).
 
-TECHNICAL GUIDELINES:
-- Main App.jsx should be 300-500 lines with all core logic
-- Create separate components only for complex reusable UI
-- Use inline styles with the color variables
-- Include localStorage for data persistence where appropriate
-- Add mock data or API simulation for realistic functionality
-- Make buttons, forms, and interactions actually work
-
-OUTPUT FORMAT (RETURN ONLY VALID JSON):
+CRITICAL REQUIREMENTS (must follow):
+1. OUTPUT FORMAT: Return a single JSON object with the exact structure shown below. Do NOT output anything else.
 {
   "name": "project-root",
   "type": "folder",
@@ -773,12 +760,12 @@ OUTPUT FORMAT (RETURN ONLY VALID JSON):
         {
           "name": "App.jsx",
           "type": "file",
-          "content": "// COMPLETE WORKING APP CODE HERE\\n// Must include:\\n// - Full React component with imports\\n// - State management for all features\\n// - Event handlers that actually work\\n// - Real functionality, not placeholders\\n// - Proper JSX structure\\n// - Inline styles using color scheme"
+          "content": "// COMPLETE WORKING APP CODE - 400-700 lines with ALL features implemented"
         },
         {
           "name": "App.css",
           "type": "file",
-          "content": "/* Global styles and animations */"
+          "content": "/* Complete design system with CSS variables, responsive grid, animations */"
         },
         {
           "name": "index.js",
@@ -788,7 +775,7 @@ OUTPUT FORMAT (RETURN ONLY VALID JSON):
         {
           "name": "index.css",
           "type": "file",
-          "content": "/* Root styles */"
+          "content": "/* Root styles and resets */"
         }
       ]
     },
@@ -799,7 +786,7 @@ OUTPUT FORMAT (RETURN ONLY VALID JSON):
         {
           "name": "index.html",
           "type": "file",
-          "content": "<!DOCTYPE html>\\n<html lang=\\"en\\">\\n<head>\\n  <meta charset=\\"utf-8\\" />\\n  <meta name=\\"viewport\\" content=\\"width=device-width, initial-scale=1\\" />\\n  <title>${ideation.projectName}</title>\\n  <script src=\\"https://cdn.tailwindcss.com\\"></script>\\n</head>\\n<body><div id=\\"root\\"></div></body>\\n</html>"
+          "content": "<!DOCTYPE html>\\n<html lang=\\"en\\">\\n<head>\\n<meta charset=\\"utf-8\\"/>\\n<meta name=\\"viewport\\" content=\\"width=device-width,initial-scale=1\\"/>\\n<title>${ideation.projectName}</title>\\n</head>\\n<body><div id=\\"root\\"></div></body>\\n</html>"
         }
       ]
     },
@@ -811,32 +798,131 @@ OUTPUT FORMAT (RETURN ONLY VALID JSON):
     {
       "name": "README.md",
       "type": "file",
-      "content": "# ${ideation.projectName}\\n\\n${ideation.description}\\n\\n## Features\\n${ideation.features.map((f, i) => `${i+1}. ${f}`).join('\\n')}\\n\\n## Run\\n\`\`\`\\nnpm install\\nnpm start\\n\`\`\`"
+      "content": "# ${ideation.projectName}\\n\\n${ideation.description}\\n\\n## Features\\n${ideation.features.map((f, i) => `${i+1}. ${f}`).join('\\n')}\\n\\n## Setup\\n\`\`\`bash\\nnpm install\\nnpm start\\nnpm run build\\n\`\`\`"
     }
   ]
 }
 
-EXAMPLE FOR TASK MANAGER:
-Create state: const [tasks, setTasks] = useState([])
-Add functionality: const addTask = (text) => setTasks([...tasks, {id: Date.now(), text, done: false}])
-Toggle: const toggle = (id) => setTasks(tasks.map(t => t.id === id ? {...t, done: !t.done} : t))
-Render: {tasks.map(t => <div key={t.id} onClick={() => toggle(t.id)}>{t.text}</div>)}
+2. MAIN FILE (App.jsx): Provide ONE comprehensive file (400–700 lines) with all UI, logic, and state. Include ALL features with real implementations - no TODOs or placeholders. Place helper components inside as internal functions if needed.
 
-EXAMPLE FOR WEATHER APP:
-Create state: const [city, setCity] = useState(''); const [weather, setWeather] = useState(null)
-Mock API: const search = () => setWeather({temp: Math.floor(Math.random()*30), condition: 'Sunny'})
-Render: Display temperature, condition, icon based on weather state
+3. DESIGN SYSTEM (App.css):
+   - CSS variables for colors (primary, secondary, accent, background, text, borders)
+   - 8px spacing scale (--space-1: 8px, --space-2: 16px, --space-3: 24px, etc.)
+   - Border radius tokens (--radius-sm: 6px, --radius-md: 8px, --radius-lg: 12px)
+   - Typography system (font sizes, weights, line heights)
+   - Include light + dark mode support with CSS variables
+   - Smooth transitions (150-250ms) for interactive elements
 
-BUILD THE REAL APP - Make every feature work with real state and interactions!
+4. REAL FEATURES - Implement everything fully:
+   - CRUD operations with proper state management
+   - Form validation with error messages
+   - Search/filter functionality that actually works
+   - localStorage persistence for user data
+   - Undo functionality for destructive actions
+   - Loading states and skeleton screens
+   - Empty states with helpful onboarding messages
+   - Confirmation dialogs for important actions
 
-Return ONLY the JSON.`
+5. VISUAL QUALITY (SaaS-grade polish):
+   - Product-level spacing, hierarchy, typography
+   - Smooth micro-interactions (hover, focus, active states)
+   - Subtle shadows and borders for depth
+   - Rounded corners on cards, buttons, inputs
+   - Use inline SVG icons or Unicode symbols (no external assets)
+   - Accessible color contrast (4.5:1 minimum)
+   - Focus rings for keyboard navigation
+   - Smooth page transitions and animations
+
+6. RESPONSIVE & ACCESSIBLE:
+   - Mobile-first responsive design
+   - Semantic HTML5 elements
+   - ARIA labels and roles where needed
+   - Keyboard navigation support
+   - Visible focus indicators
+   - Screen reader friendly
+
+7. CODE QUALITY:
+   - No "// TODO" or "// Add logic here" comments
+   - Proper error handling
+   - Idiomatic React patterns (hooks, state management)
+   - Clear variable and function names
+   - Brief inline comments only where they add clarity
+   - Efficient rendering (proper keys, avoid unnecessary re-renders)
+
+8. UX PATTERNS:
+   - Sample/seed data so app isn't empty on first load
+   - Helpful empty states with CTAs
+   - Toast notifications for actions
+   - Confirmation for destructive actions
+   - Loading indicators for async operations
+   - Optimistic UI updates where appropriate
+
+9. AESTHETIC (friendly SaaS vibe):
+   - Soft, approachable color palette using provided colors
+   - Generous whitespace and padding
+   - Clear visual hierarchy
+   - Prominent primary CTA buttons
+   - Subtle secondary actions
+   - Card-based layouts with elevation
+   - Professional but friendly microcopy
+
+IMPLEMENTATION EXAMPLES:
+
+Task Manager:
+\`\`\`javascript
+const [tasks, setTasks] = useState([
+  {id: 1, text: 'Welcome! Click to mark complete', done: false, category: 'Work'}
+]);
+const [filter, setFilter] = useState('all');
+const [searchTerm, setSearchTerm] = useState('');
+
+const addTask = (text, category) => {
+  setTasks([...tasks, {id: Date.now(), text, done: false, category}]);
+};
+
+const toggleTask = (id) => {
+  setTasks(tasks.map(t => t.id === id ? {...t, done: !t.done} : t));
+};
+
+const deleteTask = (id) => {
+  if (confirm('Delete this task?')) {
+    setTasks(tasks.filter(t => t.id !== id));
+  }
+};
+
+const filteredTasks = tasks
+  .filter(t => filter === 'all' || (filter === 'active' && !t.done) || (filter === 'done' && t.done))
+  .filter(t => t.text.toLowerCase().includes(searchTerm.toLowerCase()));
+\`\`\`
+
+E-commerce:
+\`\`\`javascript
+const [products] = useState([/* seed products */]);
+const [cart, setCart] = useState([]);
+const [searchTerm, setSearchTerm] = useState('');
+
+const addToCart = (product) => {
+  const existing = cart.find(item => item.id === product.id);
+  if (existing) {
+    setCart(cart.map(item => 
+      item.id === product.id ? {...item, quantity: item.quantity + 1} : item
+    ));
+  } else {
+    setCart([...cart, {...product, quantity: 1}]);
+  }
+};
+\`\`\`
+
+BUILD A REAL, POLISHED PRODUCT - Not just a demo or template!
+
+Return ONLY the JSON object with complete, working code.`
             }]
           }],
           generationConfig: {
             temperature: 0.7,
             topK: 40,
             topP: 0.95,
-            maxOutputTokens: 16000
+            maxOutputTokens: 20000
           }
         })
       }
