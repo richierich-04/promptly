@@ -13,7 +13,7 @@ import {
   getProjectStats 
 } from "../services/projectService";
 
-const Dashboard = ({ onNewProject, onOpenProject, onLogout }) => {
+const Dashboard = ({ onNewProject, onOpenProject, onLogout, setViewTransitionLoading }) => {
   const { currentUser } = useAuth();
   const [projects, setProjects] = useState([]);
   const [filteredProjects, setFilteredProjects] = useState([]);
@@ -151,17 +151,12 @@ const Dashboard = ({ onNewProject, onOpenProject, onLogout }) => {
   };
 
   const handleOpenProject = async (project) => {
-    try {
-      // Update last accessed time
-      await updateLastAccessed(project.id);
-      
-      // Call the parent handler
-      onOpenProject(project);
-    } catch (err) {
-      console.error('Error opening project:', err);
-      // Still open the project even if timestamp update fails
-      onOpenProject(project);
-    }
+    setViewTransitionLoading(true);
+    
+    setTimeout(() => {
+      onOpenProject(project); // This calls the parent's handler
+      setViewTransitionLoading(false);
+    }, 800);
   };
 
   const formatDate = (date) => {

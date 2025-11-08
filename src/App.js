@@ -16,6 +16,7 @@ import { useTestingAgent} from './hooks/useTestingAgent';
 import { logOut } from './firebase/auth';
 import LandingPage from './components/LandingPage.jsx'
 import toast, { Toaster } from 'react-hot-toast';
+import ProjectPage from './components/ProjectPage';
 
 
 
@@ -556,6 +557,65 @@ function AppContent() {
   const [viewTransitionLoading, setViewTransitionLoading] = useState(false);
   const [showLanding, setShowLanding] = useState(true);
 
+  // Add this new handler function
+  const handleRunAgent = async (agentId) => {
+    console.log('Running agent:', agentId);
+    setLoading(true);
+    
+    try {
+      switch(agentId) {
+        case 'ideation':
+          // Regenerate ideation
+          if (prompt) {
+            const newIdeation = await generateIdeation(prompt);
+            if (newIdeation) {
+              setIdeation(newIdeation);
+              if (currentProject?.id) {
+                await updateProject(currentProject.id, { ideation: newIdeation });
+              }
+            }
+          }
+          break;
+          
+        case 'coding':
+          // Generate or regenerate code
+          if (ideation) {
+            const files = await generateFilesFromIdeation();
+            if (files) {
+              setGeneratedFiles(files);
+              if (currentProject?.id) {
+                await updateProject(currentProject.id, { fileStructure: files });
+              }
+            }
+          }
+          break;
+          
+        case 'documentation':
+          // Generate documentation
+          await handleRegenerateDocumentation();
+          break;
+          
+        case 'testing':
+          // Generate tests
+          await handleGenerateTests();
+          break;
+          
+        case 'deployment':
+          // Open deployment modal
+          setShowDeployModal(true);
+          break;
+          
+        default:
+          console.log('Unknown agent:', agentId);
+      }
+    } catch (error) {
+      console.error('Error running agent:', error);
+      setError(error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
 
   // ===== DOCS HOOKS =====
   const [showDocModal, setShowDocModal] = useState(false);
@@ -583,6 +643,8 @@ function AppContent() {
     testProgress 
   } = useTestingAgent();  
   
+  const [showDeployModal, setShowDeployModal] = useState(false);
+
 
   if (authLoading) {
     return (
@@ -2332,52 +2394,40 @@ Make it visually appealing and different from the previous scheme.`
   // Add after authentication check, before "Transition to Dashboard":
 if (currentView === 'dashboard') {
   return (
+// Find this existing code block and replace it:
     <Dashboard 
-    onNewProject={() => {
-      setViewTransitionLoading(true);
-      setTimeout(() => {
-        setCurrentView('prompt');
-        setShowIdeation(false); // Reset
-        setCurrentProject(null);
-        setPrompt('');
-        setIdeation(null);
-        setGeneratedFiles(null);
-        setViewTransitionLoading(false);
-      }, 600);
-    }}    
+      onNewProject={() => {
+        setViewTransitionLoading(true);
+        setTimeout(() => {
+          setCurrentView('prompt');
+          setShowIdeation(false);
+          setCurrentProject(null);
+          setPrompt('');
+          setIdeation(null);
+          setGeneratedFiles(null);
+          setViewTransitionLoading(false);
+        }, 600);
+      }}    
       onOpenProject={async (project) => {
         setViewTransitionLoading(true);
-      
-        // wait a little to feel smooth
+        
         setTimeout(() => {
           setCurrentProject(project);
-      
-          if (project.ideation) {
-            setIdeation(project.ideation);
-            setCurrentView('ideation');
-            updateProject(project.id, { lastOpened: new Date() });
-          } else {
-            setCurrentView('prompt');
-          }
-      
-          if (project.fileStructure) {
-            setGeneratedFiles(project.fileStructure);
-            setCurrentView('editor');
-          }
-      
+          setCurrentView('project-page'); // Changed from 'ideation' or 'editor'
+          updateProject(project.id, { lastOpened: new Date() });
           setViewTransitionLoading(false);
         }, 800);
       }}    
       onNewWorkspace={() => {
         setViewTransitionLoading(true);
         setShowIdeation(false);
-
         setTimeout(() => {
           setCurrentView('prompt');
           setViewTransitionLoading(false);
-        }, 800); // nice fade feel
-    }}  
+        }, 800);
+      }}  
       onLogout={handleLogout}
+      setViewTransitionLoading={setViewTransitionLoading}
     />
   );
 }
@@ -2428,6 +2478,32 @@ if (currentView === 'dashboard') {
       />
     );
   }
+
+  // Add after the dashboard view check
+if (currentView === 'project-page' && currentProject) {
+  return (
+    <ProjectPage
+      project={currentProject}
+      onBack={() => setCurrentView('dashboard')}
+      onRunAgent={handleRunAgent}
+      onOpenEditor={() => {
+        if (currentProject.ideation) {
+          setIdeation(currentProject.ideation);
+        }
+        if (currentProject.fileStructure) {
+          setGeneratedFiles(currentProject.fileStructure);
+        }
+        if (currentProject.documentation) {
+          setGeneratedDocs(currentProject.documentation);
+        }
+        if (currentProject.testSuite) {
+          setTestSuite(currentProject.testSuite);
+        }
+        setCurrentView('editor');
+      }}
+    />
+  );
+}
   
   
   
