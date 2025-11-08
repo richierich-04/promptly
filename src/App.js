@@ -15,6 +15,7 @@ import PromptView from './components/PromptView';
 import { useDocumentationAgent, DocumentationModal } from './hooks/useDocumentationAgent';
 import { useTestingAgent} from './hooks/useTestingAgent';
 import { logOut } from './firebase/auth';
+import LandingPage from './components/LandingPage.jsx'
 
 
 
@@ -553,6 +554,7 @@ function AppContent() {
   const [showUserProfile, setShowUserProfile] = useState(false);
   const [currentProject, setCurrentProject] = useState(null);
   const [viewTransitionLoading, setViewTransitionLoading] = useState(false);
+  const [showLanding, setShowLanding] = useState(true);
 
 
   // ===== DOCS HOOKS =====
@@ -2035,6 +2037,7 @@ const handleGenerateIdeation = async (userPrompt) => {
     setAnimateFeatures([]);
     setLoading(false);
     setCurrentProject(null);
+    setShowLanding(true);
     
     // The AuthContext will detect the logout and automatically show login page
     // No need to manually set view - the auth check will handle it
@@ -2045,15 +2048,22 @@ const handleGenerateIdeation = async (userPrompt) => {
     return (
       <div>
         <ErrorDisplay error={authError} onClose={() => setAuthError(null)} />
-        {isSignUp ? (
+        {showLanding ? (
+          <LandingPage onGetStarted={() => {
+            setShowLanding(false);
+            setIsSignUp(true);
+          }} />
+        ) : isSignUp ? (
           <SignUp 
             onSwitchToLogin={() => setIsSignUp(false)}
             onSignUpSuccess={handleLoginSuccess}
+            onBackToLanding={() => setShowLanding(true)}
           />
         ) : (
           <Login 
             onSwitchToSignUp={() => setIsSignUp(true)}
             onLoginSuccess={handleLoginSuccess}
+            onBackToLanding={() => setShowLanding(true)}
           />
         )}
       </div>

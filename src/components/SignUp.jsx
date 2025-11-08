@@ -4,7 +4,7 @@ import { Eye, EyeOff, Mail, Lock, User, ArrowRight, Loader } from 'lucide-react'
 import { signUp, signInWithGoogle } from '../firebase/auth';
 import { useAuth } from '../contexts/AuthContext';
 
-const SignUp = ({ onSwitchToLogin, onSignUpSuccess }) => {
+const SignUp = ({ onSwitchToLogin, onSignUpSuccess, onBackToLanding }) => {
   const [formData, setFormData] = useState({
     displayName: '',
     email: '',
@@ -44,47 +44,53 @@ const SignUp = ({ onSwitchToLogin, onSignUpSuccess }) => {
     return true;
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    
+  const handleSubmit = () => {
     if (!validateForm()) {
       return;
     }
 
     setLoading(true);
-    const { user, error } = await signUp(formData.email, formData.password, formData.displayName);
-    
-    if (error) {
-      setError(error);
-    } else if (user) {
-      onSignUpSuccess?.(user);
-    }
-    
-    setLoading(false);
+    signUp(formData.email, formData.password, formData.displayName)
+      .then(({ user, error }) => {
+        if (error) {
+          setError(error);
+        } else if (user) {
+          onSignUpSuccess?.(user);
+        }
+        setLoading(false);
+      });
   };
 
-  const handleGoogleSignUp = async () => {
+  const handleGoogleSignUp = () => {
     setLoading(true);
-    const { user, error } = await signInWithGoogle();
-    
-    if (error) {
-      setError(error);
-    } else if (user) {
-      onSignUpSuccess?.(user);
-    }
-    
-    setLoading(false);
+    signInWithGoogle()
+      .then(({ user, error }) => {
+        if (error) {
+          setError(error);
+        } else if (user) {
+          onSignUpSuccess?.(user);
+        }
+        setLoading(false);
+      });
   };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 flex items-center justify-center p-4">
+      {onBackToLanding && (
+        <button 
+          onClick={onBackToLanding}
+          className="fixed top-4 left-4 text-white hover:text-gray-300 transition-colors z-10"
+        >
+          ← Back to Home
+        </button>
+      )}
       <div className="max-w-md w-full bg-white/10 backdrop-blur-lg rounded-3xl p-8 border border-white/20">
         <div className="text-center mb-8">
           <h2 className="text-3xl font-bold text-white mb-2">Create Account</h2>
           <p className="text-gray-300">Join us and start your journey</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <div className="space-y-6">
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-2">
@@ -174,7 +180,7 @@ const SignUp = ({ onSwitchToLogin, onSignUpSuccess }) => {
           </div>
 
           <button
-            type="submit"
+            onClick={handleSubmit}
             disabled={loading}
             className="w-full bg-gradient-to-r from-purple-600 to-blue-600 text-white py-3 px-4 rounded-xl font-semibold hover:from-purple-700 hover:to-blue-700 transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
@@ -211,7 +217,7 @@ const SignUp = ({ onSwitchToLogin, onSignUpSuccess }) => {
             </svg>
             Continue with Google
           </button>
-        </form>
+        </div>
 
         <div className="mt-8 text-center">
           <p className="text-gray-400">

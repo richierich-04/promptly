@@ -5,7 +5,15 @@ module.exports = {
       "./public/index.html",
     ],
     theme: {
-      extend: {},
+      extend: {
+        // Add any custom colors from landing page
+      backgroundImage: {
+        'dot-white': 'radial-gradient(white 1px, transparent 1px)',
+      },
+      backgroundSize: {
+        'dot': '20px 20px',
+      },
     },
     plugins: [],
   }
+}
