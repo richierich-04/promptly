@@ -1,44 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Code2, Bug, TestTube, FileText, Rocket, Sparkles, Twitter, Github, Linkedin, X } from 'lucide-react';
-
-// Simple Dialog Component
-const Dialog = ({ children, open, onOpenChange }) => {
-  return (
-    <>
-      {React.Children.map(children, child => {
-        if (child.type === DialogTrigger) {
-          return React.cloneElement(child, { onClick: () => onOpenChange(true) });
-        }
-        if (child.type === DialogContent && open) {
-          return (
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.8)' }}>
-              <div className="relative" onClick={(e) => e.stopPropagation()}>
-                {child}
-              </div>
-            </div>
-          );
-        }
-        return null;
-      })}
-    </>
-  );
-};
-
-const DialogTrigger = ({ children, onClick }) => {
-  return React.cloneElement(children, { onClick });
-};
-
-const DialogContent = ({ children, className }) => {
-  return (
-    <div className={className}>
-      {children}
-    </div>
-  );
-};
-
-const DialogHeader = ({ children, className }) => <div className={className}>{children}</div>;
-const DialogTitle = ({ children, className }) => <h2 className={className}>{children}</h2>;
-const DialogDescription = ({ children }) => <p className="text-gray-400 text-sm">{children}</p>;
+import { Code2, Bug, TestTube, FileText, Rocket, Sparkles, Twitter, Github, Linkedin } from 'lucide-react';
 
 // Hero Parallax Component
 const HeroParallax = ({ products }) => {
@@ -87,16 +48,6 @@ const MovingBorderButton = ({ children, className, onClick }) => {
     </button>
   );
 };
-
-// Google Icon
-const GoogleIcon = () => (
-  <svg className="w-5 h-5 mr-2" viewBox="0 0 48 48">
-    <path fill="#FFC107" d="M43.611,20.083H42V20H24v8h11.303c-1.649,4.657-6.08,8-11.303,8c-6.627,0-12-5.373-12-12s5.373-12,12-12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C12.955,4,4,12.955,4,24s8.955,20,20,20s20-8.955,20-20C44,22.659,43.862,21.35,43.611,20.083z" />
-    <path fill="#FF3D00" d="M6.306,14.691l6.571,4.819C14.655,15.108,18.961,12,24,12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C16.318,4,9.656,8.337,6.306,14.691z" />
-    <path fill="#4CAF50" d="M24,44c5.166,0,9.86-1.977,13.409-5.192l-6.19-5.238C29.211,35.091,26.715,36,24,36c-5.222,0-9.657-3.356-11.303-8H6.306C9.656,39.663,16.318,44,24,44z" />
-    <path fill="#1976D2" d="M43.611,20.083H42V20H24v8h11.303c-0.792,2.237-2.231,4.166-4.087,5.571l6.19,5.238C42.022,35.242,44,30.038,44,24C44,22.659,43.862,21.35,43.611,20.083z" />
-  </svg>
-);
 
 // Agent Card Component
 const AgentCard = ({ icon, title, description, delay }) => {
@@ -199,11 +150,7 @@ const Footer = () => {
 };
 
 // Main Landing Page Component
-export default function LandingPage() {
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-
+export default function LandingPage({ onGetStarted }) {
   const products = [
     { title: "Moonbeam", link: "https://gomoonbeam.com", thumbnail: "https://aceternity.com/images/products/thumbnails/new/moonbeam.png" },
     { title: "Cursor", link: "https://cursor.so", thumbnail: "https://aceternity.com/images/products/thumbnails/new/cursor.png" },
@@ -216,15 +163,6 @@ export default function LandingPage() {
     { title: "Tailwind Master Kit", link: "https://tailwindmasterkit.com", thumbnail: "https://aceternity.com/images/products/thumbnails/new/tailwindmasterkit.png" }
   ];
 
-  const handleSignIn = (e) => {
-    e.preventDefault();
-    alert('Email/password sign in not implemented yet.');
-  };
-
-  const handleOAuth = (provider) => {
-    alert(`${provider} OAuth not implemented yet. This would integrate with Firebase.`);
-  };
-
   return (
     <div className="min-h-screen w-full bg-gray-950 relative overflow-hidden" style={{ backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.05) 1px, transparent 1px)', backgroundSize: '20px 20px' }}>
       <div className="absolute pointer-events-none inset-0 flex items-center justify-center" style={{ background: 'radial-gradient(ellipse at center, transparent 20%, rgba(0,0,0,0.8))' }}></div>
@@ -236,90 +174,14 @@ export default function LandingPage() {
             <Sparkles className="w-8 h-8 text-purple-500" />
             <span className="text-xl font-bold text-white">Neon Board</span>
           </a>
-          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-            <DialogTrigger>
-              <MovingBorderButton className="bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:scale-105 hover:shadow-lg">
-                Get Started
-              </MovingBorderButton>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-md bg-gray-900/95 backdrop-blur-sm border border-gray-800 rounded-lg p-0 overflow-hidden">
-              <div className="relative p-8">
-                <button
-                  onClick={() => setDialogOpen(false)}
-                  className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-                <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-purple-500 via-pink-500 to-blue-400 opacity-20" style={{ maskImage: 'radial-gradient(ellipse at center, black 30%, transparent 70%)' }} />
-                <div className="relative">
-                  <DialogHeader className="text-center items-center mb-6">
-                    <DialogTitle className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-br from-purple-400 via-pink-400 to-blue-400">
-                      Welcome to Neon Board
-                    </DialogTitle>
-                    <DialogDescription>
-                      Sign in to your account to continue.
-                    </DialogDescription>
-                  </DialogHeader>
-
-                  <div className="space-y-4">
-                    <div className="space-y-2">
-                      <label htmlFor="email" className="text-sm text-gray-300">Email</label>
-                      <input
-                        id="email"
-                        type="email"
-                        placeholder="alex@example.com"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-md text-white focus:outline-none focus:border-purple-500 transition-colors"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <label htmlFor="password" className="text-sm text-gray-300">Password</label>
-                      <input
-                        id="password"
-                        type="password"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-md text-white focus:outline-none focus:border-purple-500 transition-colors"
-                      />
-                    </div>
-                    <button
-                      onClick={handleSignIn}
-                      className="w-full bg-gradient-to-r from-purple-600 to-pink-600 text-white py-2 rounded-md hover:scale-105 hover:shadow-lg transition-all duration-300"
-                    >
-                      Sign In
-                    </button>
-                  </div>
-
-                  <div className="relative my-6">
-                    <div className="absolute inset-0 flex items-center">
-                      <span className="w-full border-t border-gray-700" />
-                    </div>
-                    <div className="relative flex justify-center text-xs uppercase">
-                      <span className="bg-gray-900 px-2 text-gray-400">Or continue with</span>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-col gap-4">
-                    <button
-                      onClick={() => handleOAuth('google')}
-                      className="w-full flex items-center justify-center px-4 py-2 bg-gray-800 border border-gray-700 rounded-md text-white hover:bg-gray-700 transition-colors"
-                    >
-                      <GoogleIcon />
-                      Continue with Google
-                    </button>
-                    <button
-                      onClick={() => handleOAuth('github')}
-                      className="w-full flex items-center justify-center px-4 py-2 bg-gray-800 border border-gray-700 rounded-md text-white hover:bg-gray-700 transition-colors"
-                    >
-                      <Github className="mr-2 h-5 w-5" />
-                      Continue with GitHub
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </DialogContent>
-          </Dialog>
+          
+          {/* ✅ Simple Get Started Button - No Dialog */}
+          <MovingBorderButton 
+            onClick={onGetStarted}
+            className="bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:scale-105 hover:shadow-lg"
+          >
+            Get Started
+          </MovingBorderButton>
         </header>
 
         {/* Hero Section */}
@@ -356,7 +218,7 @@ export default function LandingPage() {
             </p>
             <div className="mt-8">
               <MovingBorderButton
-                onClick={() => setDialogOpen(true)}
+                onClick={onGetStarted}
                 className="bg-purple-600/90 text-white hover:bg-purple-600 transition-all duration-300"
                 style={{ boxShadow: '0 0 20px rgba(168, 85, 247, 0.5)' }}
               >

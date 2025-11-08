@@ -2048,23 +2048,32 @@ const handleGenerateIdeation = async (userPrompt) => {
     return (
       <div>
         <ErrorDisplay error={authError} onClose={() => setAuthError(null)} />
+        
+        {/* Landing Page - First Screen */}
         {showLanding ? (
-          <LandingPage onGetStarted={() => {
-            setShowLanding(false);
-            setIsSignUp(true);
-          }} />
-        ) : isSignUp ? (
-          <SignUp 
-            onSwitchToLogin={() => setIsSignUp(false)}
-            onSignUpSuccess={handleLoginSuccess}
-            onBackToLanding={() => setShowLanding(true)}
+          <LandingPage 
+            onGetStarted={() => {
+              setShowLanding(false);
+              setIsSignUp(true); // Go directly to signup
+            }} 
           />
         ) : (
-          <Login 
-            onSwitchToSignUp={() => setIsSignUp(true)}
-            onLoginSuccess={handleLoginSuccess}
-            onBackToLanding={() => setShowLanding(true)}
-          />
+          // Auth Pages - After clicking Get Started
+          <>
+            {isSignUp ? (
+              <SignUp 
+                onSwitchToLogin={() => setIsSignUp(false)}
+                onSignUpSuccess={handleLoginSuccess}
+                onBackToLanding={() => setShowLanding(true)}
+              />
+            ) : (
+              <Login 
+                onSwitchToSignUp={() => setIsSignUp(true)}
+                onLoginSuccess={handleLoginSuccess}
+                onBackToLanding={() => setShowLanding(true)}
+              />
+            )}
+          </>
         )}
       </div>
     );
