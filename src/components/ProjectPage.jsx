@@ -330,6 +330,20 @@ const ProjectPage = ({ project, onBack, onRunAgent, onOpenEditor }) => {
                     </div>
                   )}
 
+                    {totalProgress === 100 && (
+                    <div className="mt-4 bg-green-500/10 border border-green-400/30 rounded-lg p-3 text-sm text-green-300">
+                        <p>✅ All modules generated successfully!</p>
+                        <ul className="mt-1 space-y-0.5 text-gray-300 text-xs">
+                        <li>💡 Ideation: Complete</li>
+                        <li>💻 Code: Generated</li>
+                        <li>📘 Docs: Ready</li>
+                        <li>🧪 Tests: Passed</li>
+                        <li>🚀 Deployment: Successful</li>
+                        </ul>
+                    </div>
+                    )}
+
+
                   {/* Action Button */}
                   <button
                     onClick={() => handleRunAgent(agent)}

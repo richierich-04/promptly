@@ -195,14 +195,19 @@ const Dashboard = ({ onNewProject, onOpenProject, onLogout, setViewTransitionLoa
     );
   };
 
-  const getProgressFromStatus = (status) => {
-    const progressMap = {
-      'draft': 30,
-      'in-progress': 60,
-      'completed': 100
-    };
-    return progressMap[status] || 0;
+  const getProgressFromStatus = (project) => {
+    const stages = [
+      project.ideation,
+      project.fileStructure,
+      project.documentation,
+      project.testSuite,
+      project.deploymentConfig
+    ];
+    
+    const completed = stages.filter(Boolean).length;
+    return Math.round((completed / stages.length) * 100);
   };
+  
 
   const progressColor = (v) =>
     v >= 80 ? "bg-gradient-to-r from-green-500 to-emerald-500" :
@@ -450,7 +455,7 @@ const Dashboard = ({ onNewProject, onOpenProject, onLogout, setViewTransitionLoa
             : "space-y-4"
           }>
             {filteredProjects.map(p => {
-              const progress = getProgressFromStatus(p.status);
+              const progress = getProgressFromStatus(p);
               const techStack = getTechStackFromProject(p);
               const filesCount = countFiles(p.fileStructure);
               const linesOfCode = countLines(p.fileStructure);

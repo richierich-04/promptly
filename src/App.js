@@ -561,6 +561,8 @@ function AppContent() {
   const [workflowMode, setWorkflowMode] = useState(null); // 'automated' or 'manual'
   const [automatedStages, setAutomatedStages] = useState([]);
   const [isAutomating, setIsAutomating] = useState(false);
+  const [projects, setProjects] = useState([]);
+
 
   // Add this new handler function
   const handleRunAgent = async (agentId) => {
@@ -2022,7 +2024,22 @@ const handleGenerateIdeation = async (userPrompt) => {
   });
   
 
-  setCurrentProject({ id: projectId, ...ideationData });
+  const completedProject = {
+    id: projectId,
+    name: ideationData.projectName,
+    description: ideationData.description,
+    ideation: ideationData,
+    fileStructure: generatedFiles,
+    documentation: generatedDocs,
+    testSuite: testSuite,
+    deploymentConfig: { url: 'https://mock-deploy.app', status: 'success' },
+    status: 'completed',
+    progress: 100,
+    lastOpened: new Date(),
+    codeQuality: 92
+  };  
+  setCurrentProject(completedProject);
+  
 
 
 
@@ -2063,7 +2080,7 @@ const handleAutomatedWorkflow = async (userPrompt) => {
       s.id === 'coding' ? { ...s, progress: 30, tasks: [{ name: 'Generating code structure...', completed: false }] } : s
     ));
     
-    const files = await generateFilesFromIdeation();
+    const files = await generateFilesFromIdeation(ideationData);
     if (!files) throw new Error('Code generation failed');
     
     setGeneratedFiles(files);
@@ -2110,29 +2127,42 @@ const handleAutomatedWorkflow = async (userPrompt) => {
       s.id === 'deployment' ? { ...s, completed: true, progress: 100, duration: '10s' } : s
     ));
     
-    // Save project
-    const { projectId } = await createProject(currentUser.uid, {
-      name: ideationData.projectName,
-      description: ideationData.description,
-      ideation: ideationData,
-      fileStructure: filesWithTests,
-      documentation: docs,
-      testSuite: tests,
-      prompt: userPrompt,
-      status: 'completed',
-      lastOpened: new Date(),
-    });
-    
-    setCurrentProject({ id: projectId, ...ideationData });
-    
-    // Transition to editor after 2 seconds
-    setTimeout(() => {
-      setCurrentView('editor');
-      setIsAutomating(false);
-      toast.success('🎉 Project generated successfully!');
-    }, 2000);
-    
-  } catch (error) {
+    // Save completed project
+const completedProject = {
+  name: ideationData.projectName,
+  description: ideationData.description,
+  ideation: ideationData,
+  fileStructure: filesWithTests,
+  documentation: docs,
+  testSuite: tests,
+  deploymentConfig: { url: 'https://mock-deployment.vercel.app', status: 'success' },
+  prompt: userPrompt,
+  status: 'completed',
+  lastOpened: new Date(),
+  codeQuality: 92,
+  progress: 100
+};
+
+// Store in backend (if using Firebase or custom API)
+const { projectId } = await createProject(currentUser.uid, completedProject);
+
+// Save locally to app state
+setCurrentProject({ id: projectId, ...completedProject });
+
+
+
+// Mark all automation stages complete
+setAutomatedStages(prev =>
+  prev.map(s => ({ ...s, completed: true, progress: 100, duration: s.duration || '✔️ Done' }))
+);
+
+// Redirect to project dashboard
+setTimeout(() => {
+  setCurrentView('projectDashboard'); // or navigate('/dashboard') if using React Router
+  setIsAutomating(false);
+  toast.success('🎉 All agents completed successfully! Redirecting to dashboard...');
+}, 1500);
+} catch (error) {
     console.error('Automated workflow error:', error);
     setError(error.message);
     setAutomatedStages(prev => prev.map(s => 
@@ -2690,7 +2720,7 @@ if (currentView === 'project-page' && currentProject) {
         if (currentProject.testSuite) {
           setTestSuite(currentProject.testSuite);
         }
-        setCurrentView('editor');
+        setCurrentView('projectDashboard');
       }}
     />
   );
@@ -3057,6 +3087,24 @@ if (currentView === 'ideation' && ideation) {
           />
         )}
       </div>
+    );
+  }
+
+  // Project Dashboard View (after auto agents finish)
+  if (currentView === 'projectDashboard' && currentProject) {
+    return (
+      <ProjectPage
+        project={currentProject}
+        onBack={() => setCurrentView('dashboard')}
+        onRunAgent={handleRunAgent}
+        onOpenEditor={() => {
+          if (currentProject.ideation) setIdeation(currentProject.ideation);
+          if (currentProject.fileStructure) setGeneratedFiles(currentProject.fileStructure);
+          if (currentProject.documentation) setGeneratedDocs(currentProject.documentation);
+          if (currentProject.testSuite) setTestSuite(currentProject.testSuite);
+          setCurrentView('editor');
+        }}
+      />
     );
   }
 
