@@ -15,6 +15,7 @@ import { useDocumentationAgent, DocumentationModal } from './hooks/useDocumentat
 import { useTestingAgent} from './hooks/useTestingAgent';
 import { logOut } from './firebase/auth';
 import LandingPage from './components/LandingPage.jsx'
+import toast, { Toaster } from 'react-hot-toast';
 
 
 
@@ -1949,15 +1950,14 @@ Make it visually appealing and different from the previous scheme.`
 
   const handleSaveProject = async () => {
     if (!currentUser) {
-      alert('Please log in to save projects');
+      setError('Please log in to save projects');
       return;
     }
-
+  
     setLoading(true);
     setError('');
-
+  
     try {
-      // Helper function to safely serialize data
       const safeSerialize = (data) => {
         if (data === null || data === undefined) return null;
         try {
@@ -1967,15 +1967,14 @@ Make it visually appealing and different from the previous scheme.`
           return null;
         }
       };
-
-      // Ensure all data is properly formatted and serializable
+  
       const safeTechStack = ideation?.techStack ? {
         frontend: Array.isArray(ideation.techStack.frontend) ? [...ideation.techStack.frontend] : [],
         backend: Array.isArray(ideation.techStack.backend) ? [...ideation.techStack.backend] : [],
         database: Array.isArray(ideation.techStack.database) ? [...ideation.techStack.database] : [],
         other: Array.isArray(ideation.techStack.other) ? [...ideation.techStack.other] : []
       } : {};
-
+  
       const projectData = {
         name: String(ideation?.projectName || 'Untitled Project'),
         description: String(ideation?.description || ''),
@@ -1987,33 +1986,31 @@ Make it visually appealing and different from the previous scheme.`
         documentation: safeSerialize(generatedDocs),
         testSuite: safeSerialize(testSuite),
         codeQuality: safeSerialize(codeQuality),
-        tags: [] // Ensure tags is always an array
+        tags: []
       };
-
+  
+      let success, projectId, error;
+  
       if (currentProject?.id) {
-        // Update existing project
-        const { success, error } = await updateProject(currentProject.id, projectData);
-        if (success) {
-          alert('Project saved successfully!');
-        } else {
-          throw new Error(error || 'Failed to save project');
-        }
+        ({ success, error } = await updateProject(currentProject.id, projectData));
       } else {
-        // Create new project
-        const { success, projectId, error } = await createProject(currentUser.uid, projectData);
-        if (success) {
-          setCurrentProject({ id: projectId, ...projectData });
-          alert('Project saved successfully!');
-        } else {
-          throw new Error(error || 'Failed to create project');
-        }
+        ({ success, projectId, error } = await createProject(currentUser.uid, projectData));
+        if (success) setCurrentProject({ id: projectId, ...projectData });
       }
+  
+      if (success) {
+        toast.success('✅ Progress saved successfully!');
+        setTimeout(() => {
+          setLoading(false);
+          setCurrentView('dashboard');
+        }, 2000);
+      } else {
+        throw new Error(error || 'Failed to save project');
+      }
+  
     } catch (err) {
       console.error('Error saving project:', err);
-      const errorMessage = err.message || 'Failed to save project';
-      setError(errorMessage);
-      alert(`Failed to save: ${errorMessage}`);
-    } finally {
+      setError(err.message || 'Failed to save project');
       setLoading(false);
     }
   };
