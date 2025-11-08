@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Star, Palette, Layout, Type, Users, Play, Sparkles, ChevronDown, Edit, Lightbulb, Code, ArrowRight, Box, FileText, Zap, Target, Database, Rocket, ArrowLeft, CheckCircle, RefreshCw, Loader } from 'lucide-react';
+import { Star, Palette, Layout, Type, Users, Play, Sparkles, ChevronDown, Edit, Lightbulb, Code, ArrowRight, Box, FileText, Zap, Target, Database, Rocket, ArrowLeft, CheckCircle, RefreshCw, Loader, Save } from 'lucide-react';
 import VSCodeFileExplorer from './components/VSCodeFileExplorer';
 import Login from './components/Login';
 import SignUp from './components/SignUp';
@@ -1945,6 +1945,77 @@ Make it visually appealing and different from the previous scheme.`
     }
   };
 
+  const handleSaveProject = async () => {
+    if (!currentUser) {
+      alert('Please log in to save projects');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+
+    try {
+      // Helper function to safely serialize data
+      const safeSerialize = (data) => {
+        if (data === null || data === undefined) return null;
+        try {
+          return JSON.parse(JSON.stringify(data));
+        } catch (e) {
+          console.warn('Failed to serialize data:', e);
+          return null;
+        }
+      };
+
+      // Ensure all data is properly formatted and serializable
+      const safeTechStack = ideation?.techStack ? {
+        frontend: Array.isArray(ideation.techStack.frontend) ? [...ideation.techStack.frontend] : [],
+        backend: Array.isArray(ideation.techStack.backend) ? [...ideation.techStack.backend] : [],
+        database: Array.isArray(ideation.techStack.database) ? [...ideation.techStack.database] : [],
+        other: Array.isArray(ideation.techStack.other) ? [...ideation.techStack.other] : []
+      } : {};
+
+      const projectData = {
+        name: String(ideation?.projectName || 'Untitled Project'),
+        description: String(ideation?.description || ''),
+        ideation: safeSerialize(ideation),
+        fileStructure: safeSerialize(generatedFiles),
+        techStack: safeTechStack,
+        status: generatedFiles ? 'in-progress' : 'draft',
+        prompt: String(prompt || ''),
+        documentation: safeSerialize(generatedDocs),
+        testSuite: safeSerialize(testSuite),
+        codeQuality: safeSerialize(codeQuality),
+        tags: [] // Ensure tags is always an array
+      };
+
+      if (currentProject?.id) {
+        // Update existing project
+        const { success, error } = await updateProject(currentProject.id, projectData);
+        if (success) {
+          alert('Project saved successfully!');
+        } else {
+          throw new Error(error || 'Failed to save project');
+        }
+      } else {
+        // Create new project
+        const { success, projectId, error } = await createProject(currentUser.uid, projectData);
+        if (success) {
+          setCurrentProject({ id: projectId, ...projectData });
+          alert('Project saved successfully!');
+        } else {
+          throw new Error(error || 'Failed to create project');
+        }
+      }
+    } catch (err) {
+      console.error('Error saving project:', err);
+      const errorMessage = err.message || 'Failed to save project';
+      setError(errorMessage);
+      alert(`Failed to save: ${errorMessage}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handlePrototype = async () => {
     setCurrentView('loading');
     const files = await generateFilesFromIdeation();
@@ -2345,13 +2416,32 @@ if (currentView === 'ideation' && ideation) {
             </div>
           </div>
 
-          <button
-            onClick={handleBack}
-            className="px-5 py-2.5 text-sm bg-white/5 hover:bg-white/10 border border-white/10 hover:border-purple-500/50 rounded-xl transition-all duration-300 flex items-center gap-2 group backdrop-blur-md"
-          >
-            <ArrowLeft className="w-4 h-4 text-gray-400 group-hover:text-purple-400 transition-colors" />
-            <span className="text-gray-300 group-hover:text-white transition-colors font-medium">Back to Dashboard</span>
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleSaveProject}
+              disabled={loading}
+              className="px-5 py-2.5 text-sm bg-gradient-to-r from-purple-600 to-cyan-600 hover:from-purple-500 hover:to-cyan-500 border border-purple-500/50 rounded-xl transition-all duration-300 flex items-center gap-2 group disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-purple-500/30"
+            >
+              {loading ? (
+                <>
+                  <Loader className="w-4 h-4 animate-spin text-white" />
+                  <span className="text-white font-medium">Saving...</span>
+                </>
+              ) : (
+                <>
+                  <Save className="w-4 h-4 text-white" />
+                  <span className="text-white font-medium">Save</span>
+                </>
+              )}
+            </button>
+            <button
+              onClick={handleBack}
+              className="px-5 py-2.5 text-sm bg-white/5 hover:bg-white/10 border border-white/10 hover:border-purple-500/50 rounded-xl transition-all duration-300 flex items-center gap-2 group backdrop-blur-md"
+            >
+              <ArrowLeft className="w-4 h-4 text-gray-400 group-hover:text-purple-400 transition-colors" />
+              <span className="text-gray-300 group-hover:text-white transition-colors font-medium">Back to Dashboard</span>
+            </button>
+          </div>
         </div>
 
         {/* Description - Small */}
@@ -2543,12 +2633,31 @@ if (currentView === 'ideation' && ideation) {
               <span className="font-semibold">{ideation?.projectName || 'Untitled'}</span>
             </div>
           </div>
-          <button
-            onClick={handleStartOver}
-            className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors"
-          >
-            Start Over
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleSaveProject}
+              disabled={loading}
+              className="px-4 py-2 bg-gradient-to-r from-purple-600 to-cyan-600 hover:from-purple-500 hover:to-cyan-500 text-white rounded-lg font-medium transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-purple-500/30"
+            >
+              {loading ? (
+                <>
+                  <Loader className="w-4 h-4 animate-spin" />
+                  <span>Saving...</span>
+                </>
+              ) : (
+                <>
+                  <Save className="w-4 h-4" />
+                  <span>Save</span>
+                </>
+              )}
+            </button>
+            <button
+              onClick={handleStartOver}
+              className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors"
+            >
+              Start Over
+            </button>
+          </div>
         </div>
         <VSCodeFileExplorer 
             generatedFiles={generatedFiles}
@@ -2574,6 +2683,8 @@ if (currentView === 'ideation' && ideation) {
             documentation={generatedDocs}
             projectName={ideation?.projectName || 'Project'}
             onClose={() => setShowDocsViewer(false)}
+            onSave={handleSaveProject}
+            saving={loading}
           />
         )}
 
@@ -2585,6 +2696,8 @@ if (currentView === 'ideation' && ideation) {
             testResults={testSuite}
             codeQuality={codeQuality}
             onClose={() => setShowTestViewer(false)}
+            onSave={handleSaveProject}
+            saving={loading}
             onRunTests={() => {
               console.log('Running tests...');
               // Add test execution logic here

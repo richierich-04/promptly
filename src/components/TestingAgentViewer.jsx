@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { FileText, CheckCircle, XCircle, AlertTriangle, Play, Download, RefreshCw } from 'lucide-react';
+import { FileText, CheckCircle, XCircle, AlertTriangle, Play, Download, RefreshCw, Save } from 'lucide-react';
 
-const TestingAgentViewer = ({ testResults, codeQuality, onClose, onRunTests }) => {
+const TestingAgentViewer = ({ testResults, codeQuality, onClose, onRunTests, onSave, saving }) => {
   const [activeTab, setActiveTab] = useState('summary');
   const [selectedTest, setSelectedTest] = useState(null);
 
@@ -296,6 +296,17 @@ const TestingAgentViewer = ({ testResults, codeQuality, onClose, onRunTests }) =
           </div>
           
           <div className="flex items-center gap-3">
+            {/* Save Button */}
+            {onSave && (
+              <button
+                onClick={onSave}
+                disabled={saving}
+                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-cyan-600 hover:from-purple-500 hover:to-cyan-500 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-purple-500/30"
+              >
+                <Save className="w-4 h-4" />
+                {saving ? 'Saving...' : 'Save'}
+              </button>
+            )}
             {onRunTests && (
               <button
                 onClick={onRunTests}

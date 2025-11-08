@@ -1,8 +1,8 @@
 // Complete Documentation Viewer Component
 import React, { useState } from 'react';
-import { FileText, Download, Search, BookOpen, Code, GitBranch, Settings } from 'lucide-react';
+import { FileText, Download, Search, BookOpen, Code, GitBranch, Settings, Save } from 'lucide-react';
 
-const DocumentationViewer = ({ documentation, onClose, projectName }) => {
+const DocumentationViewer = ({ documentation, onClose, projectName, onSave, saving }) => {
   const [activeDoc, setActiveDoc] = useState('readme');
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
@@ -193,6 +193,18 @@ const DocumentationViewer = ({ documentation, onClose, projectName }) => {
                 </div>
               )}
             </div>
+
+            {/* Save Button */}
+            {onSave && (
+              <button
+                onClick={onSave}
+                disabled={saving}
+                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-cyan-600 hover:from-purple-500 hover:to-cyan-500 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-purple-500/30"
+              >
+                <Save className="w-4 h-4" />
+                {saving ? 'Saving...' : 'Save'}
+              </button>
+            )}
 
             {/* Export Button */}
             <button
